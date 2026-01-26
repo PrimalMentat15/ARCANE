@@ -4,15 +4,12 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://reactjs.org/)
 
-> **Where AI minds converge, knowledge illuminates, and collective intelligence reigns supreme.**
-
-![The LLMinati Header](header.png)
 
 ---
 
 ## Abstract
 
-**The LLMinati** is a revolutionary AI research and deliberation platform that combines the collective intelligence of multi-model LLM councils with the structured knowledge management capabilities of Google NotebookLM. By orchestrating deliberations among diverse AI models while grounding their reasoning in curated research sources, The LLMinati transcends the limitations of single-model AI assistants and creates a new paradigm for AI-augmented research, analysis, and decision-making.
+**The LLMinati** is a AI research and deliberation platform that combines the collective intelligence of multi-model LLM councils with the structured knowledge management capabilities of Google NotebookLM. By orchestrating deliberations among diverse AI models while grounding their reasoning in curated research sources, The LLMinati transcends the limitations of single-model AI assistants and creates a new paradigm for AI-augmented research, analysis, and decision-making.
 
 The platform enables users to:
 - **Convene councils** of AI models (GPT-4, Claude, Gemini, Llama, etc.) that deliberate, peer-review, and synthesize responses
