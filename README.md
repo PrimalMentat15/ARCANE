@@ -1,209 +1,113 @@
-# The LLMinati
+# Generative Agents (Private Refactor)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://reactjs.org/)
+This is a private repository containing a refactored version of the original [Generative Agents](https://github.com/joonspk-research/generative_agents) research project by Stanford and Google researchers.
 
+## Overview
 
----
-
-## Abstract
-
-**The LLMinati** is a AI research and deliberation platform that combines the collective intelligence of multi-model LLM councils with the structured knowledge management capabilities of Google NotebookLM. By orchestrating deliberations among diverse AI models while grounding their reasoning in curated research sources, The LLMinati transcends the limitations of single-model AI assistants and creates a new paradigm for AI-augmented research, analysis, and decision-making.
-
-The platform enables users to:
-- **Convene councils** of AI models (GPT-4, Claude, Gemini, Llama, etc.) that deliberate, peer-review, and synthesize responses
-- **Ground deliberations** in structured research notebooks with sources from web, Google Drive, PDFs, and URLs
-- **Generate rich outputs** including audio podcasts, video overviews, slide decks, and infographics
-- **Maintain source citations** throughout the entire deliberation process for full transparency and traceability
-- **Iterate research** through multi-stage pipelines that combine discovery, analysis, and content generation
+The primary objective of this project is to refactor and customize the original simulation infrastructure for specific research and development needs. This version focuses on improving the code structure and integrating custom modules while maintaining the core agentic capabilities described in the original paper.
 
 ---
 
-## Project Goals
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Isabella_Rodriguez.png" alt="Generative Isabella">   Setting Up the Environment 
+To set up your environment, you will need to generate a `utils.py` file that contains your OpenAI API key and download the necessary packages.
 
-### Primary Objectives
+### Step 1. Generate Utils File
+In the `reverie/backend_server` folder (where `reverie.py` is located), create a new file titled `utils.py` and copy and paste the content below into the file:
+```python
+# Copy and paste your OpenAI API Key
+openai_api_key = "<Your OpenAI API>"
+# Put your name
+key_owner = "<Name>"
 
-1. **Collective AI Intelligence**: Harness diverse perspectives from multiple LLM providers to produce more balanced, comprehensive, and accurate insights than any single model could provide.
+maze_assets_loc = "../../environment/frontend_server/static_dirs/assets"
+env_matrix = f"{maze_assets_loc}/the_ville/matrix"
+env_visuals = f"{maze_assets_loc}/the_ville/visuals"
 
-2. **Knowledge-Grounded Reasoning**: Ensure all AI deliberations are anchored in verified sources, reducing hallucinations and increasing trustworthiness.
+fs_storage = "../../environment/frontend_server/storage"
+fs_temp_storage = "../../environment/frontend_server/temp_storage"
 
-3. **Enterprise-Ready Research Workflows**: Create production-grade tools for research teams, product managers, legal analysts, and content creators who need AI assistance with complex analytical tasks.
+collision_block_id = "32125"
 
-4. **Seamless Integration**: Unify LLM Council Plus and NotebookLM MCP into a cohesive platform without sacrificing the modularity of either system.
+# Verbose 
+debug = True
+```
+Replace `<Your OpenAI API>` with your OpenAI API key, and `<name>` with your name.
+ 
+### Step 2. Install requirements.txt
+Install everything listed in the `requirements.txt` file (I strongly recommend first setting up a virtualenv as usual). A note on Python version: we tested our environment on Python 3.9.12. 
 
-5. **Democratized AI Power**: Make advanced multi-model AI accessible through an intuitive interface that doesn't require technical expertise.
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Klaus_Mueller.png" alt="Generative Klaus">   Running a Simulation 
+To run a new simulation, you will need to concurrently start two servers: the environment server and the agent simulation server.
 
-### Success Metrics
+### Step 1. Starting the Environment Server
+Again, the environment is implemented as a Django project, and as such, you will need to start the Django server. To do this, first navigate to `environment/frontend_server` (this is where `manage.py` is located) in your command line. Then run the following command:
 
-- **Response Quality**: 40%+ improvement in user satisfaction vs. single-model responses (measured via blind A/B testing)
-- **Source Accuracy**: 90%+ of factual claims traceable to cited sources
-- **Adoption**: 1,000+ active users within 6 months of launch
-- **Use Case Diversity**: Platform used across 5+ distinct professional domains (research, legal, engineering, marketing, education)
+    python manage.py runserver
+
+Then, on your favorite browser, go to [http://localhost:8000/](http://localhost:8000/). If you see a message that says, "Your environment server is up and running," your server is running properly. Ensure that the environment server continues to run while you are running the simulation, so keep this command-line tab open!
+
+### Step 2. Starting the Simulation Server
+Open up another command line (the one you used in Step 1 should still be running the environment server, so leave that as it is). Navigate to `reverie/backend_server` and run `reverie.py`.
+
+    python reverie.py
+This will start the simulation server. A command-line prompt will appear, asking the following: "Enter the name of the forked simulation: ". To start a 3-agent simulation with Isabella Rodriguez, Maria Lopez, and Klaus Mueller, type the following:
+    
+    base_the_ville_isabella_maria_klaus
+The prompt will then ask, "Enter the name of the new simulation: ". Type any name to denote your current simulation (e.g., just "test-simulation" will do for now).
+
+    test-simulation
+Keep the simulator server running. At this stage, it will display the following prompt: "Enter option: "
+
+### Step 3. Running and Saving the Simulation
+On your browser, navigate to [http://localhost:8000/simulator_home](http://localhost:8000/simulator_home). You should see the map of Smallville, along with a list of active agents on the map. You can move around the map using your keyboard arrows. Please keep this tab open. To run the simulation, type the following command in your simulation server in response to the prompt, "Enter option":
+
+    run <step-count>
+Note that you will want to replace `<step-count>` above with an integer indicating the number of game steps you want to simulate. For instance, if you want to simulate 100 game steps, you should input `run 100`. One game step represents 10 seconds in the game.
+
+Once the simulation finishes running, the "Enter option" prompt will re-appear. At this point, you can simulate more steps by re-entering the run command with your desired game steps, exit the simulation without saving by typing `exit`, or save and exit by typing `fin`.
+
+### Step 4. Replaying a Simulation
+You can replay a simulation that you have already run simply by having your environment server running and navigating to the following address in your browser: `http://localhost:8000/replay/<simulation-name>/<starting-time-step>`.
+
+### Step 5. Demoing a Simulation
+To properly demonstrate a simulation with appropriate character sprites, you will need to compress the simulation first. Execute the `compress` function in `compress_sim_storage.py` with the name of the target simulation as its input.
+
+To start the demo, go to: `http://localhost:8000/demo/<simulation-name>/<starting-time-step>/<simulation-speed>`.
 
 ---
 
-## Proposed Architecture
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Maria_Lopez.png" alt="Generative Maria">   Simulation Storage Location
+All simulations that you save will be located in `environment/frontend_server/storage`, and all compressed demos will be located in `environment/frontend_server/compressed_storage`. 
 
-### System Overview
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Sam_Moore.png" alt="Generative Sam">   Customization
+There are two ways to optionally customize your simulations. 
+
+### Author and Load Agent History
+1. Start your simulation using one of the base simulations (`base_the_ville_n25` or `base_the_ville_isabella_maria_klaus`).
+2. When prompted with "Enter option: ", load the agent history:
+   `call -- load history the_ville/<history_file_name>.csv`
+
+### Create New Base Simulations
+The most straightforward approach would be to copy and paste an existing base simulation folder, renaming and editing it according to your requirements.
+
+---
+
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Eddy_Lin.png" alt="Generative Eddy">   Authors and Citation 
+**Authors:** Joon Sung Park, Joseph C. O'Brien, Carrie J. Cai, Meredith Ringel Morris, Percy Liang, Michael S. Bernstein
 
 ```
-┌────────────────────────────────────────────────────────────────────┐
-│                        THE LLMINATI                                │
-│                   (Unified Orchestration Layer)                    │
-│                                                                    │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │                    Council Engine                         │    │
-│  │  • Multi-model deliberation (Stage 1)                     │    │
-│  │  • Anonymous peer review (Stage 2)                        │    │
-│  │  • Chairman synthesis (Stage 3)                           │    │
-│  │  • Temperature & execution mode controls                  │    │
-│  └──────────────┬───────────────────────────┬────────────────┘    │
-│                 │                           │                      │
-│     ┌───────────▼──────────┐    ┌──────────▼────────────┐        │
-│     │  Knowledge Engine    │    │  LLM Provider Hub     │        │
-│     │  (NotebookLM MCP)    │    │  • OpenRouter         │        │
-│     │                      │    │  • Ollama (Local)     │        │
-│     │  • Notebook CRUD     │    │  • Groq               │        │
-│     │  • Source ingestion  │    │  • OpenAI Direct      │        │
-│     │  • AI summaries      │    │  • Anthropic Direct   │        │
-│     │  • Web/Drive research│    │  • Google Direct      │        │
-│     │  • Content generation│    │  • Mistral Direct     │        │
-│     └──────────┬───────────┘    │  • DeepSeek Direct    │        │
-│                │                 │  • Custom Endpoints   │        │
-│                │                 └───────────────────────┘        │
-│                │                                                   │
-│     ┌──────────▼────────────────────────────────────────┐        │
-│     │         External Integrations                     │        │
-│     │                                                    │        │
-│     │  ┌─────────────┐  ┌──────────────┐  ┌──────────┐ │        │
-│     │  │ Google      │  │ Web Search   │  │ Jina     │ │        │
-│     │  │ NotebookLM  │  │ • DuckDuckGo │  │ Reader   │ │        │
-│     │  │ API         │  │ • Tavily     │  │          │ │        │
-│     │  │             │  │ • Brave      │  │          │ │        │
-│     │  └─────────────┘  └──────────────┘  └──────────┘ │        │
-│     └───────────────────────────────────────────────────┘        │
-└────────────────────────────────────────────────────────────────────┘
-                                 │
-                                 ▼
-         ┌───────────────────────────────────────────────┐
-         │            User Interface Layer               │
-         │                                               │
-         │  • React 19 Frontend (Vite)                   │
-         │  • FastAPI Backend                            │
-         │  • Real-time streaming (SSE)                  │
-         │  • Markdown rendering                         │
-         │  • Conversation persistence (JSON)            │
-         │  • Settings management                        │
-         └───────────────────────────────────────────────┘
+@inproceedings{Park2023GenerativeAgents,  
+author = {Park, Joon Sung and O'Brien, Joseph C. and Cai, Carrie J. and Morris, Meredith Ringel and Liang, Percy and Bernstein, Michael S.},  
+title = {Generative Agents: Interactive Simulacra of Human Behavior},  
+year = {2023},  
+publisher = {Association for Computing Machinery},  
+address = {New York, NY, USA},  
+booktitle = {In the 36th Annual ACM Symposium on User Interface Software and Technology (UIST '23)},  
+keywords = {Human-AI interaction, agents, generative AI, large language models},  
+location = {San Francisco, CA, USA},  
+series = {UIST '23}
+}
 ```
 
-### Data Flow Architecture
-
-```
-User Query → Knowledge Enrichment → Council Deliberation → Synthesis → Output
-     │              │                       │                  │          │
-     │              ▼                       ▼                  ▼          ▼
-     │     NotebookLM Search      Stage 1: Models      Stage 3:    Citations
-     │     Source Extraction       Respond            Chairman      Podcast
-     │     Drive Integration      Stage 2: Peer      Synthesis     Slides
-     │                             Review                          Docs
-     └──────────────────────────────────────────────────────────────────────┘
-                            Persistent Notebooks (Google NotebookLM)
-```
-
----
-
-## Technologies Implemented
-
-### Backend Stack
-
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **Python** | Core backend language | 3.10+ |
-| **FastAPI** | REST API server & WebSocket support | 0.115+ |
-| **httpx** | Async HTTP client for LLM API calls | Latest |
-| **uv** | Fast Python package manager | Latest |
-| **MCP SDK** | Model Context Protocol integration | Latest |
-| **YAKE** | Keyword extraction for smart search | Latest |
-
-### Frontend Stack
-
-| Technology | Purpose | Version |
-|------------|---------|---------|
-| **React** | UI framework | 19 |
-| **Vite** | Build tool & dev server | Latest |
-| **react-markdown** | Markdown rendering | Latest |
-| **CSS3** | Custom "Midnight Glass" theme | - |
-
-### LLM Integration
-
-| Provider | Type | Access Method |
-|----------|------|---------------|
-| **OpenRouter** | Cloud | API (100+ models) |
-| **Ollama** | Local | HTTP API |
-| **Groq** | Cloud | API (ultra-fast inference) |
-| **OpenAI** | Cloud | Direct API |
-| **Anthropic** | Cloud | Direct API |
-| **Google AI** | Cloud | Direct API |
-| **Mistral** | Cloud | Direct API |
-| **DeepSeek** | Cloud | Direct API |
-| **Custom** | Any | OpenAI-compatible endpoint |
-
-### Knowledge & Search
-
-| Service | Purpose | Integration |
-|---------|---------|-------------|
-| **Google NotebookLM** | Document management, AI summaries, content generation | MCP Server |
-| **DuckDuckGo** | Free web search | API |
-| **Tavily** | LLM-optimized search | API |
-| **Brave Search** | Privacy-focused search | API |
-| **Jina Reader** | Full article extraction | API |
-| **Google Drive** | Document storage/retrieval | NotebookLM MCP |
-
-### Storage & Configuration
-
-| Component | Technology | Location |
-|-----------|------------|----------|
-| **Settings** | JSON files | `data/settings.json` |
-| **Conversations** | JSON files | `data/conversations/{uuid}.json` |
-| **Auth Tokens** | JSON files | `~/.notebooklm-mcp/auth.json` |
-| **Notebooks** | Cloud storage | Google NotebookLM servers |
-
----
-
-## Getting Started
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+
-- uv (Python package manager)
-- Google account (for NotebookLM)
-- API keys for at least one LLM provider
-
-### Quick Start
-
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/llminati.git
-cd llminati
-
-# Install backend dependencies
-uv sync
-
-# Install frontend dependencies
-cd frontend
-npm install
-cd ..
-
-# Authenticate with NotebookLM
-notebooklm-mcp-auth
-
-# Start the platform
-./start.sh
-```
-
-Then open **http://localhost:5173** in your browser.
-
----
+## <img src="https://joonsungpark.s3.amazonaws.com:443/static/assets/characters/profile/Wolfgang_Schulz.png" alt="Generative Wolfgang">   Acknowledgements
+Original research and development by the Stanford and Google team. Assets by PixyMoon, LimeZu, and ぴぽ.
