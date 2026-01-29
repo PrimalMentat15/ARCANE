@@ -4,15 +4,17 @@ environment/frontend_server/compressed_storage/*
 environment/frontend_server/storage/*
 storage/*
 static_dirs/*
-
+environment/frontend_server/storage/*
 !storage/base_the_ville_isabella_maria_klaus/*
 !storage/base_the_ville_n25/*
-
+docs_temp/*
+logs/*
+test_smoke.py
 bin/
 include/
 pip-selfcheck.json
 .DS_Store
-
+arcane/.env
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
