@@ -1,0 +1,46 @@
+# ARCANE Global Configuration
+
+simulation:
+  step_duration_seconds: 1        # Real-time delay between steps (0 = max speed)
+  sim_time_per_step_minutes: 10   # How many in-sim minutes each step represents
+  max_steps: 0                    # 0 = unlimited (interactive mode)
+
+llm:
+  benign_agents:
+    provider: openrouter
+    model: meta-llama/llama-3.3-70b-instruct:free
+  deviant_agents:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+  reflection:
+    provider: gemini
+    model: gemini-2.5-flash-lite
+
+memory:
+  retrieval_weights:
+    recency: 1.0
+    importance: 1.0
+    relevance: 1.0
+  reflection_interval_steps: 10       # Reflect every N steps
+  max_memories_retrieved: 10
+
+world:
+  default_map: the_ville
+  vision_radius: 4                    # Tiles an agent can perceive
+
+channels:
+  sms_delivery_delay_steps: 1         # Steps before SMS is delivered
+  email_delivery_delay_steps: 2       # Steps before email is delivered
+  dm_delivery_delay_steps: 1          # Steps before DM is delivered
+
+logging:
+  level: INFO
+  log_dir: logs/
+  event_log_format: json              # json or csv
+  log_every_step: true                # Active logs for every step
+
+visualization:
+  pixel_art_scale: 2                  # Scale factor for pixel art sprites
+  show_interaction_log: true
+  show_metrics_dashboard: true
+  dark_mode: true
