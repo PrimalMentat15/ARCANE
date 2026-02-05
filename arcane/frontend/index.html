@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARCANE — Social Engineering Simulation</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Game Canvas --- */
+        #game-container {
+            flex: 1;
+            position: relative;
+            background: #111122;
+        }
+
+        #game-container canvas {
+            display: block;
+        }
+
+        /* --- HUD Sidebar --- */
+        #hud {
+            width: 380px;
+            background: #0d0d1f;
+            border-left: 1px solid #1a1a3e;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        #hud-header {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, #1a1a3e 0%, #0d0d1f 100%);
+            border-bottom: 1px solid #2a2a5e;
+        }
+
+        #hud-header h1 {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ff6b9d, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+
+        #step-info {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+            font-family: 'Consolas', monospace;
+        }
+
+        /* --- Tabs --- */
+        #tab-bar {
+            display: flex;
+            border-bottom: 1px solid #1a1a3e;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn:hover { color: #aaa; }
+
+        .tab-btn.active {
+            color: #c084fc;
+            border-bottom-color: #c084fc;
+        }
+
+        /* --- Tab Content --- */
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Event Log --- */
+        #event-log {
+            padding: 8px 12px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .event-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #111133;
+            word-wrap: break-word;
+        }
+
+        .event-entry .timestamp {
+            color: #555;
+            margin-right: 6px;
+        }
+
+        .evt-message_sent { color: #00d2ff; }
+        .evt-message_received { color: #00ff88; }
+        .evt-information_revealed { color: #ff4444; font-weight: bold; }
+        .evt-trust_change { color: #ffaa00; }
+        .evt-tactic_used { color: #ff6600; }
+        .evt-goal_phase_change { color: #ff00ff; }
+        .evt-agent_action { color: #aaaacc; }
+        .evt-step_start { color: #444466; }
+        .evt-step_end { color: #444466; }
+        .evt-simulation_start { color: #60a5fa; }
+
+        /* --- Agent Cards --- */
+        #agent-list {
+            padding: 12px;
+        }
+
+        .agent-card {
+            background: #111133;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #1a1a4e;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .agent-card:hover {
+            border-color: #3a3a7e;
+        }
+
+        .agent-card.deviant {
+            border-left: 3px solid #e74c3c;
+        }
+
+        .agent-card.benign {
+            border-left: 3px solid #3498db;
+        }
+
+        .agent-card-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .agent-portrait {
+            width: 32px;
+            height: 32px;
+            image-rendering: pixelated;
+            border-radius: 4px;
+        }
+
+        .agent-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .agent-type-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-left: auto;
+        }
+
+        .agent-type-badge.deviant {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+        }
+
+        .agent-type-badge.benign {
+            background: rgba(52, 152, 219, 0.2);
+            color: #3498db;
+        }
+
+        .agent-detail {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+
+        .agent-detail strong {
+            color: #aaa;
+        }
+
+        /* --- Metrics --- */
+        #metrics-panel {
+            padding: 12px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: #111133;
+            border-radius: 6px;
+            margin-bottom: 6px;
+        }
+
+        .metric-label {
+            color: #888;
+            font-size: 12px;
+        }
+
+        .metric-value {
+            color: #e0e0e0;
+            font-weight: 600;
+            font-size: 14px;
+            font-family: 'Consolas', monospace;
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a1a; }
+        ::-webkit-scrollbar-thumb { background: #2a2a5e; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #3a3a7e; }
+
+        /* Loading overlay */
+        #loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: #0a0a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            transition: opacity 0.5s;
+        }
+
+        #loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading-text {
+            font-size: 24px;
+            background: linear-gradient(135deg, #ff6b9d, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+        <div id="loading-text">ARCANE — Loading...</div>
+    </div>
+
+    <!-- Game canvas -->
+    <div id="game-container"></div>
+
+    <!-- HUD Sidebar -->
+    <div id="hud">
+        <div id="hud-header">
+            <h1>⬡ ARCANE</h1>
+            <div id="step-info">Waiting for simulation...</div>
+        </div>
+
+        <div id="tab-bar">
+            <button class="tab-btn active" data-tab="events">📋 Events</button>
+            <button class="tab-btn" data-tab="agents">👥 Agents</button>
+            <button class="tab-btn" data-tab="metrics">📊 Metrics</button>
+        </div>
+
+        <div id="tab-events" class="tab-content active">
+            <div id="event-log">
+                <div class="event-entry" style="color: #555;">
+                    Waiting for events... Use <code>run N</code> in terminal.
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-agents" class="tab-content">
+            <div id="agent-list">
+                <div style="color: #555; padding: 20px; text-align: center;">
+                    Loading agents...
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-metrics" class="tab-content">
+            <div id="metrics-panel">
+                <div class="metric-row">
+                    <span class="metric-label">Step</span>
+                    <span class="metric-value" id="m-step">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Sim Time</span>
+                    <span class="metric-value" id="m-time">—</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Messages Sent</span>
+                    <span class="metric-value" id="m-messages">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Info Reveals</span>
+                    <span class="metric-value" id="m-reveals">0</span>
+                </div>
+                <div class="metric-row">
+                    <span class="metric-label">Tactics Used</span>
+                    <span class="metric-value" id="m-tactics">0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/api.js"></script>
+    <script src="/static/ui.js"></script>
+    <script src="/static/game.js"></script>
+</body>
+</html>
