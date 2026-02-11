@@ -12,11 +12,11 @@ import mesa
 import logging
 from typing import Optional, Any
 
-from arcane.memory.memory_stream import MemoryStream
-from arcane.channels.smartphone import Smartphone
-from arcane.llm.prompt_builder import build_system_prompt
+from memory.memory_stream import MemoryStream
+from channels.smartphone import Smartphone
+from llm.prompt_builder import build_system_prompt
 
-logger = logging.getLogger("arcane.agents")
+logger = logging.getLogger("root.agents")
 
 
 class BaseArcaneAgent(mesa.Agent):
@@ -133,7 +133,7 @@ class BaseArcaneAgent(mesa.Agent):
             self.model.event_logger.__class__.__mro__[0]  # type hint workaround
         ) if False else None
 
-        from arcane.research.event_logger import SimEvent, EventType
+        from research.event_logger import SimEvent, EventType
         self.model.event_logger.log(SimEvent(
             step=step_num,
             event_type=EventType.AGENT_PLAN,

@@ -14,14 +14,14 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 
-from arcane.llm.base_provider import BaseProvider
+from llm.base_provider import BaseProvider
 
 # Load .env from project root or arcane/ dir
 _project_root = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_project_root / ".env")
 load_dotenv(_project_root / "arcane" / ".env")
 
-logger = logging.getLogger("arcane.llm.openrouter")
+logger = logging.getLogger("root.llm.openrouter")
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 

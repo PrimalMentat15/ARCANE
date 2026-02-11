@@ -12,7 +12,7 @@ import os
 import solara
 from mesa.visualization import SolaraViz, make_space_component, make_plot_component
 
-from arcane.model import ArcaneModel
+from model import ArcaneModel
 
 
 def agent_portrayal(agent):
@@ -124,7 +124,7 @@ def MetricsDashboard(model):
     total_msgs = len(model.event_logger.get_events_by_type(
         model.event_logger.__class__.__mro__[0])) if False else 0
 
-    from arcane.research.event_logger import EventType
+    from research.event_logger import EventType
     msg_count = len(model.event_logger.get_events_by_type(EventType.MESSAGE_SENT))
     reveal_count = len(model.event_logger.get_events_by_type(EventType.INFORMATION_REVEALED))
     tactic_count = len(model.event_logger.get_events_by_type(EventType.TACTIC_USED))

@@ -10,10 +10,10 @@ import random
 import logging
 from typing import Optional
 
-from arcane.agents.base_agent import BaseArcaneAgent
-from arcane.llm.prompt_builder import build_system_prompt
+from agents.base_agent import BaseArcaneAgent
+from llm.prompt_builder import build_system_prompt
 
-logger = logging.getLogger("arcane.agents.benign")
+logger = logging.getLogger("root.agents.benign")
 
 
 class BenignAgent(BaseArcaneAgent):
