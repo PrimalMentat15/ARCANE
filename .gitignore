@@ -1,31 +1,13 @@
-reverie/backend_server/utils.py
-frontend_server/settings/local.py
-environment/frontend_server/compressed_storage/*
-environment/frontend_server/storage/*
-storage/*
-static_dirs/*
-environment/frontend_server/storage/*
-!storage/base_the_ville_isabella_maria_klaus/*
-!storage/base_the_ville_n25/*
-docs_temp/*
-logs/*
-test_smoke.py
-bin/
-include/
-pip-selfcheck.json
+# System
 .DS_Store
-arcane/.env
-# Byte-compiled / optimized / DLL files
+Thumbs.db
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
-env/
 build/
 develop-eggs/
 dist/
@@ -37,15 +19,16 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+# Virtual Environments
+venv/
+env/
+ENV/
 
 # Installer logs
 pip-log.txt
@@ -54,53 +37,38 @@ pip-delete-this-directory.txt
 # Unit test / coverage reports
 htmlcov/
 .tox/
+.nox/
 .coverage
 .coverage.*
 .cache
 nosetests.xml
 coverage.xml
-*,cover
+*.cover
+*.py,cover
 .hypothesis/
+.pytest_cache/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-target/
-
-# IPython Notebook
+# Jupyter Notebook
 .ipynb_checkpoints
 
-# pyenv
-.python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# dotenv
-.env
-
-# virtualenv
-venv/
-ENV/
-
-# Spyder project settings
+# IDEs
+.idea/
+.vscode/
 .spyderproject
-
-# Rope project settings
 .ropeproject
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+arcane/.env
+
+# Logs
+*.log
+logs/
+
+# ARCANE Specific
+docs_temp/
+storage/*
+static_dirs/*
+test_smoke.py
