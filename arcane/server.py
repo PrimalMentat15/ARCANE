@@ -21,7 +21,7 @@ logger = logging.getLogger("arcane.server")
 _ARCANE_ROOT = Path(__file__).resolve().parent
 _PROJECT_ROOT = _ARCANE_ROOT.parent
 _FRONTEND_DIR = _ARCANE_ROOT / "frontend"
-_ASSETS_DIR = _PROJECT_ROOT / "environment" / "frontend_server" / "static_dirs" / "assets"
+_ASSETS_DIR = _ARCANE_ROOT / "assets"
 
 # Global model reference — set by run.py before starting the server
 _model = None
