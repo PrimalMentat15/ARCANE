@@ -8,13 +8,13 @@ all communication events.
 
 from typing import TYPE_CHECKING
 
-from arcane.channels.base_channel import (
+from channels.base_channel import (
     ProximityChat, SMSChannel, EmailChannel, SocialDMChannel, Message
 )
 
 if TYPE_CHECKING:
-    from arcane.agents.base_agent import BaseArcaneAgent
-    from arcane.research.event_logger import EventLogger
+    from agents.base_agent import BaseArcaneAgent
+    from research.event_logger import EventLogger
 
 
 class ChannelRouter:
@@ -92,7 +92,7 @@ class ChannelRouter:
                         self.event_logger.__class__.__mro__[0]  # avoid circular
                     ) if False else None  # placeholder
 
-                    from arcane.research.event_logger import SimEvent, EventType
+                    from research.event_logger import SimEvent, EventType
                     self.event_logger.log(SimEvent(
                         step=current_step,
                         event_type=EventType.MESSAGE_RECEIVED,

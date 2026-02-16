@@ -8,8 +8,8 @@ channel context, Big Five trait injections, and current situation.
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from arcane.agents.base_agent import BaseArcaneAgent
-    from arcane.memory.memory_stream import Memory
+    from agents.base_agent import BaseArcaneAgent
+    from memory.memory_stream import Memory
 
 
 # Big Five trait → natural language prompt injection mapping
