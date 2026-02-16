@@ -94,7 +94,7 @@ def print_banner():
     """Print the ARCANE startup banner."""
     print()
     print("  ╔═══════════════════════════════════════════════════╗")
-    print("  ║        ⬡  A R C A N E  v0.1.0  ⬡                ║")
+    print("  ║        ⬡  A R C A N E  v0.9.0  ⬡                ║")
     print("  ║    Social Engineering Simulation Framework       ║")
     print("  ╚═══════════════════════════════════════════════════╝")
     print()

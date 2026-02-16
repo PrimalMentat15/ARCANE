@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="arcane",
-    version="0.5.0",
+    version="0.9.0",
     packages=find_packages(),
     install_requires=[
         "mesa>=3.5.0",
