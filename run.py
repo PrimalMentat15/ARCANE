@@ -40,9 +40,9 @@ logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
-logging.getLogger("arcane.llm").setLevel(logging.WARNING)
+logging.getLogger("root.llm").setLevel(logging.WARNING)
 
-logger = logging.getLogger("arcane.runner")
+logger = logging.getLogger("root.runner")
 
 
 def load_config() -> dict:
@@ -72,7 +72,7 @@ def load_scenario(path: str | None) -> dict:
 def start_server(model, port: int):
     """Start the FastAPI server in a background thread."""
     import uvicorn
-    from arcane.server import create_app, set_model
+    from server import create_app, set_model
 
     set_model(model)
     app = create_app()
@@ -120,7 +120,7 @@ def cmd_run(model, args):
         print("  Usage: run <number>")
         return
 
-    from arcane.research.event_logger import EventType
+    from research.event_logger import EventType
 
     print(f"  Running {n} step(s)...")
     start_time = time.time()
@@ -160,7 +160,7 @@ def cmd_run(model, args):
 
 def cmd_status(model):
     """Show current simulation state."""
-    from arcane.research.event_logger import EventType
+    from research.event_logger import EventType
 
     all_events = model.event_logger.get_recent_events(500)
     msg_count = sum(1 for e in all_events if e.event_type == EventType.MESSAGE_SENT)
@@ -224,7 +224,7 @@ def main():
 
     # Create model
     print("  Initializing model...")
-    from arcane.model import ArcaneModel
+    from model import ArcaneModel
     model = ArcaneModel(scenario=scenario, config=config)
 
     deviant_count = sum(1 for a in model.agents_by_id.values()

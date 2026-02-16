@@ -114,7 +114,7 @@ class EventLogger:
         self.log_file_path = os.path.join(log_dir, f"run_{self.run_id}.jsonl")
 
         # Python logger for console output
-        self.logger = logging.getLogger("arcane.events")
+        self.logger = logging.getLogger("root.events")
         if not self.logger.handlers:
             handler = logging.StreamHandler()
             handler.setFormatter(logging.Formatter(

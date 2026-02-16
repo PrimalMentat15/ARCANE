@@ -12,13 +12,13 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from arcane.research.event_logger import EventLogger, SimEvent, EventType
-from arcane.channels.router import ChannelRouter
-from arcane.agents.benign_agent import BenignAgent
-from arcane.agents.deviant_agent import DeviantAgent
-from arcane.llm.base_provider import BaseProvider
+from research.event_logger import EventLogger, SimEvent, EventType
+from channels.router import ChannelRouter
+from agents.benign_agent import BenignAgent
+from agents.deviant_agent import DeviantAgent
+from llm.base_provider import BaseProvider
 
-logger = logging.getLogger("arcane.model")
+logger = logging.getLogger("root.model")
 
 
 # Default locations for the simulation world
@@ -354,13 +354,13 @@ class ArcaneModel(mesa.Model):
 
         if cache_key not in self._llm_providers:
             if provider_name == "gemini":
-                from arcane.llm.gemini_provider import GeminiProvider
+                from llm.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
             elif provider_name == "openrouter":
-                from arcane.llm.openrouter_provider import OpenRouterProvider
+                from llm.openrouter_provider import OpenRouterProvider
                 self._llm_providers[cache_key] = OpenRouterProvider(model=model_name)
             else:
-                from arcane.llm.gemini_provider import GeminiProvider
+                from llm.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
 
         return self._llm_providers[cache_key]

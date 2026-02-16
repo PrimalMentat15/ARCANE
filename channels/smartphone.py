@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from arcane.channels.base_channel import Message
+    from channels.base_channel import Message
 
 
 def _generate_phone_number() -> str:

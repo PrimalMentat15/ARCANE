@@ -13,10 +13,10 @@ import random
 import logging
 from typing import Optional
 
-from arcane.agents.base_agent import BaseArcaneAgent
-from arcane.llm.prompt_builder import build_system_prompt
+from agents.base_agent import BaseArcaneAgent
+from llm.prompt_builder import build_system_prompt
 
-logger = logging.getLogger("arcane.agents.deviant")
+logger = logging.getLogger("root.agents.deviant")
 
 
 # Social engineering phases
@@ -413,7 +413,7 @@ class DeviantAgent(BaseArcaneAgent):
                     "to_phase": current_phase + 1,
                 })
 
-                from arcane.research.event_logger import SimEvent, EventType
+                from research.event_logger import SimEvent, EventType
                 self.model.event_logger.log(SimEvent(
                     step=self.model.step_count,
                     event_type=EventType.GOAL_PHASE_CHANGE,

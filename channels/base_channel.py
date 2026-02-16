@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from arcane.agents.base_agent import BaseArcaneAgent
+    from agents.base_agent import BaseArcaneAgent
 
 
 @dataclass

@@ -15,7 +15,7 @@ from fastapi import FastAPI, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 
-logger = logging.getLogger("arcane.server")
+logger = logging.getLogger("root.server")
 
 # Paths
 _ARCANE_ROOT = Path(__file__).resolve().parent
