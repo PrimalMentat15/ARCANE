@@ -5,4 +5,4 @@ A Mesa-based simulation framework for studying social engineering and cyber frau
 behavior in multi-agent environments.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

@@ -61,14 +61,14 @@ coverage.xml
 .env
 .env.local
 .env.*.local
-arcane/.env
 
 # Logs
 *.log
-logs/
 
 # ARCANE Specific
-docs_temp/
 storage/*
+!storage/.gitkeep
+docs_temp/
 static_dirs/*
-test_smoke.py
+test_*.py
+tmpclaude-*

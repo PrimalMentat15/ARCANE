@@ -12,9 +12,9 @@ import mesa
 import logging
 from typing import Optional, Any
 
-from memory.memory_stream import MemoryStream
-from channels.smartphone import Smartphone
-from llm.prompt_builder import build_system_prompt
+from backend.memory.memory_stream import MemoryStream
+from backend.channels.smartphone import Smartphone
+from llms.prompt_builder import build_system_prompt
 
 logger = logging.getLogger("root.agents")
 
@@ -76,8 +76,11 @@ class BaseArcaneAgent(mesa.Agent):
         self.current_activity = "idle"
         self.current_emoji = "💤"
 
-        # Daily schedule (filled by planning)
-        self.daily_schedule: list[dict] = []
+        # Daily schedule (from persona data)
+        self.daily_schedule: list[dict] = persona_data.get("daily_schedule", [])
+
+        # Relationships with other agents
+        self.relationships: list[dict] = persona_data.get("relationships", [])
 
         # Trust register: other_agent_id -> trust_level (0.0 to 1.0)
         self.trust_register: dict[str, float] = {}
@@ -133,7 +136,7 @@ class BaseArcaneAgent(mesa.Agent):
             self.model.event_logger.__class__.__mro__[0]  # type hint workaround
         ) if False else None
 
-        from research.event_logger import SimEvent, EventType
+        from backend.research.event_logger import SimEvent, EventType
         self.model.event_logger.log(SimEvent(
             step=step_num,
             event_type=EventType.AGENT_PLAN,

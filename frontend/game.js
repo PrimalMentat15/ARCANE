@@ -229,6 +229,10 @@ class ArcaneScene extends Phaser.Scene {
             ArcaneUI.updateMetrics(events);
         });
 
+        ArcaneAPI.onResultsUpdate((results) => {
+            ArcaneUI.updateResults(results);
+        });
+
         // Do an initial fetch
         ArcaneAPI.fetchState().then(state => {
             if (state) {

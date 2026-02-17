@@ -26,7 +26,6 @@ from dotenv import load_dotenv
 # Load environment variables
 _project_root = Path(__file__).resolve().parent
 load_dotenv(_project_root / ".env")
-load_dotenv(_project_root / "arcane" / ".env")
 
 # Configure logging
 logging.basicConfig(
@@ -47,7 +46,7 @@ logger = logging.getLogger("root.runner")
 
 def load_config() -> dict:
     """Load settings.yaml."""
-    config_path = _project_root / "arcane" / "config" / "settings.yaml"
+    config_path = _project_root / "backend" / "config" / "settings.yaml"
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f) or {}
@@ -61,7 +60,7 @@ def load_scenario(path: str | None) -> dict:
     scenario_path = Path(path)
     if not scenario_path.exists():
         # Try relative to scenarios dir
-        scenario_path = _project_root / "arcane" / "scenarios" / path
+        scenario_path = _project_root / "backend" / "scenarios" / path
     if scenario_path.exists():
         with open(scenario_path) as f:
             return yaml.safe_load(f) or {}
@@ -72,7 +71,7 @@ def load_scenario(path: str | None) -> dict:
 def start_server(model, port: int):
     """Start the FastAPI server in a background thread."""
     import uvicorn
-    from server import create_app, set_model
+    from backend.server import create_app, set_model
 
     set_model(model)
     app = create_app()
@@ -94,7 +93,7 @@ def print_banner():
     """Print the ARCANE startup banner."""
     print()
     print("  ╔═══════════════════════════════════════════════════╗")
-    print("  ║        ⬡  A R C A N E  v0.9.0  ⬡                ║")
+    print("  ║        ⬡  A R C A N E  v1.0.0  ⬡                ║")
     print("  ║    Social Engineering Simulation Framework       ║")
     print("  ╚═══════════════════════════════════════════════════╝")
     print()
@@ -107,6 +106,9 @@ def print_help():
     print("    status      Show current simulation state")
     print("    agents      List all agents with details")
     print("    log [N]     Show last N events (default 20)")
+    print("    results     Show attack progress report")
+    print("    history     List past simulation runs")
+    print("    review <id> View results from a past run")
     print("    help        Show this help message")
     print("    quit        Exit cleanly")
     print()
@@ -120,7 +122,7 @@ def cmd_run(model, args):
         print("  Usage: run <number>")
         return
 
-    from research.event_logger import EventType
+    from backend.research.event_logger import EventType
 
     print(f"  Running {n} step(s)...")
     start_time = time.time()
@@ -160,7 +162,7 @@ def cmd_run(model, args):
 
 def cmd_status(model):
     """Show current simulation state."""
-    from research.event_logger import EventType
+    from backend.research.event_logger import EventType
 
     all_events = model.event_logger.get_recent_events(500)
     msg_count = sum(1 for e in all_events if e.event_type == EventType.MESSAGE_SENT)
@@ -207,6 +209,72 @@ def cmd_log(model, args):
     print()
 
 
+def cmd_results(model):
+    """Show attack progress report."""
+    from backend.research.results_analyzer import analyze_live, format_terminal_report
+
+    results = analyze_live(model)
+    print(format_terminal_report(results))
+
+
+def cmd_history(model):
+    """List past simulation runs."""
+    from backend.research.results_analyzer import list_runs
+
+    log_dir = model.event_logger.log_dir
+    runs = list_runs(log_dir)
+
+    if not runs:
+        print("  No past simulation runs found.")
+        print()
+        return
+
+    print()
+    print(f"  {'ID':<24} {'Date':<18} {'Steps':>6} {'Reveals':>8} {'Size':>8}")
+    print(f"  {'-'*24} {'-'*18} {'-'*6} {'-'*8} {'-'*8}")
+    for run in runs:
+        # Mark current run
+        marker = " *" if run["run_id"] == f"run_{model.event_logger.run_id}" else "  "
+        print(f"{marker}{run['run_id']:<24} {run['date']:<18} "
+              f"{run['steps']:>6} {run['reveals']:>8} "
+              f"{run['size_kb']:>6.1f}KB")
+    print()
+    print("  * = current run. Use 'review <id>' to view details.")
+    print()
+
+
+def cmd_review(model, args):
+    """View results from a past simulation run."""
+    from backend.research.results_analyzer import (
+        list_runs, analyze_file, format_terminal_report,
+    )
+
+    if not args:
+        print("  Usage: review <run_id>")
+        print("  Use 'history' to see available runs.")
+        print()
+        return
+
+    run_id = args[0]
+    log_dir = model.event_logger.log_dir
+    runs = list_runs(log_dir)
+
+    # Find the matching run
+    target_file = None
+    for run in runs:
+        if run["run_id"] == run_id:
+            target_file = run["file"]
+            break
+
+    if not target_file:
+        print(f"  Run '{run_id}' not found. Use 'history' to see available runs.")
+        print()
+        return
+
+    results = analyze_file(target_file)
+    print(format_terminal_report(results))
+
+
 def main():
     parser = argparse.ArgumentParser(description="ARCANE Simulation Runner")
     parser.add_argument("--scenario", type=str, default=None, help="Scenario YAML file")
@@ -224,7 +292,7 @@ def main():
 
     # Create model
     print("  Initializing model...")
-    from model import ArcaneModel
+    from backend.model import ArcaneModel
     model = ArcaneModel(scenario=scenario, config=config)
 
     deviant_count = sum(1 for a in model.agents_by_id.values()
@@ -280,6 +348,12 @@ def main():
             cmd_agents(model)
         elif cmd == "log":
             cmd_log(model, cmd_args)
+        elif cmd == "results":
+            cmd_results(model)
+        elif cmd == "history":
+            cmd_history(model)
+        elif cmd == "review":
+            cmd_review(model, cmd_args)
         elif cmd == "help":
             print_help()
         elif cmd in ("quit", "exit", "q"):

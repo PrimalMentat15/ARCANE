@@ -1,6 +1,6 @@
 /**
  * ARCANE API Client
- * 
+ *
  * Polls the FastAPI backend for simulation state and events.
  * Exposes a simple interface for game.js and ui.js to consume.
  */
@@ -10,6 +10,7 @@ const ArcaneAPI = (() => {
     let _pollInterval = null;
     let _onStateUpdate = null;
     let _onEventsUpdate = null;
+    let _onResultsUpdate = null;
 
     /**
      * Fetch current simulation state.
@@ -54,6 +55,48 @@ const ArcaneAPI = (() => {
     }
 
     /**
+     * Fetch current attack results.
+     */
+    async function fetchResults() {
+        try {
+            const resp = await fetch('/api/results');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API results fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch list of past simulation runs.
+     */
+    async function fetchHistory() {
+        try {
+            const resp = await fetch('/api/history');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API history fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch results from a past simulation run.
+     */
+    async function fetchHistoricalResults(runId) {
+        try {
+            const resp = await fetch(`/api/history/${runId}`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API historical results fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
      * Start polling for updates.
      */
     function startPolling(intervalMs = 1000) {
@@ -65,9 +108,12 @@ const ArcaneAPI = (() => {
                 _lastStep = state.step;
                 if (_onStateUpdate) _onStateUpdate(state);
 
-                // Also fetch events when state changes
+                // Also fetch events and results when state changes
                 const events = await fetchEvents(50);
                 if (events && _onEventsUpdate) _onEventsUpdate(events);
+
+                const results = await fetchResults();
+                if (results && _onResultsUpdate) _onResultsUpdate(results);
             }
         }, intervalMs);
     }
@@ -77,13 +123,18 @@ const ArcaneAPI = (() => {
      */
     function onStateUpdate(cb) { _onStateUpdate = cb; }
     function onEventsUpdate(cb) { _onEventsUpdate = cb; }
+    function onResultsUpdate(cb) { _onResultsUpdate = cb; }
 
     return {
         fetchState,
         fetchEvents,
         fetchAgents,
+        fetchResults,
+        fetchHistory,
+        fetchHistoricalResults,
         startPolling,
         onStateUpdate,
         onEventsUpdate,
+        onResultsUpdate,
     };
 })();

@@ -2,16 +2,17 @@ from setuptools import setup, find_packages
 
 setup(
     name="arcane",
-    version="0.9.0",
+    version="1.0.0",
     packages=find_packages(),
     install_requires=[
-        "mesa>=3.5.0",
-        "solara>=1.40.0",
-        "google-generativeai>=0.8.0",
+        "mesa>=3.0.0",
+        "google-genai>=1.0.0",
         "httpx>=0.27.0",
         "pyyaml>=6.0",
         "python-dotenv>=1.0.0",
         "networkx>=3.0",
+        "fastapi>=0.109.0",
+        "uvicorn>=0.27.0",
     ],
     python_requires=">=3.10",
 )
