@@ -72,7 +72,7 @@
             background: none;
             border: none;
             color: #666;
-            font-size: 12px;
+            font-size: 11px;
             cursor: pointer;
             transition: all 0.2s;
             border-bottom: 2px solid transparent;
@@ -226,6 +226,205 @@
             font-family: 'Consolas', monospace;
         }
 
+        /* --- Results Panel --- */
+        #results-panel {
+            padding: 12px;
+        }
+
+        .results-header {
+            background: linear-gradient(135deg, #1a1a3e, #0d0d2f);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #2a2a5e;
+        }
+
+        .results-header .attacker-name {
+            font-size: 16px;
+            font-weight: 700;
+            color: #e74c3c;
+        }
+
+        .results-header .run-info {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+            font-family: 'Consolas', monospace;
+        }
+
+        .target-card {
+            background: #111133;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #1a1a4e;
+        }
+
+        .target-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .target-card-header .target-name {
+            font-weight: 600;
+            font-size: 13px;
+            color: #3498db;
+        }
+
+        .phase-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(192, 132, 252, 0.15);
+            color: #c084fc;
+        }
+
+        .target-stat {
+            font-size: 11px;
+            color: #888;
+            margin-top: 3px;
+        }
+
+        .target-stat strong {
+            color: #aaa;
+        }
+
+        .trust-bar {
+            width: 100%;
+            height: 4px;
+            background: #1a1a3e;
+            border-radius: 2px;
+            margin-top: 6px;
+            margin-bottom: 4px;
+        }
+
+        .trust-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.3s;
+        }
+
+        .channel-badge {
+            display: inline-block;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: rgba(0, 210, 255, 0.1);
+            color: #00d2ff;
+            margin-right: 4px;
+        }
+
+        .tactic-badge {
+            display: inline-block;
+            font-size: 9px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            background: rgba(255, 102, 0, 0.1);
+            color: #ff6600;
+            margin-right: 4px;
+        }
+
+        .extracted-item {
+            font-size: 11px;
+            padding: 4px 8px;
+            margin-top: 4px;
+            border-radius: 4px;
+            border-left: 3px solid #ff4444;
+            background: rgba(255, 68, 68, 0.08);
+            color: #ff6666;
+        }
+
+        .extracted-item.high {
+            border-left-color: #ff0000;
+            background: rgba(255, 0, 0, 0.1);
+            color: #ff4444;
+            font-weight: 600;
+        }
+
+        .extracted-value {
+            margin-top: 4px;
+            padding: 3px 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 3px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            color: #ffcc00;
+            word-break: break-all;
+        }
+
+        .results-summary {
+            background: #0a0a1a;
+            border: 1px solid #1a1a3e;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+
+        .results-summary .status-success {
+            color: #ff4444;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .results-summary .status-pending {
+            color: #888;
+            font-size: 13px;
+        }
+
+        /* --- History Panel --- */
+        #history-panel {
+            padding: 12px;
+        }
+
+        .history-entry {
+            background: #111133;
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 6px;
+            border: 1px solid #1a1a4e;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .history-entry:hover {
+            border-color: #3a3a7e;
+        }
+
+        .history-entry .run-id {
+            font-size: 12px;
+            font-weight: 600;
+            color: #c084fc;
+            font-family: 'Consolas', monospace;
+        }
+
+        .history-entry .run-meta {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .history-entry .reveal-count {
+            color: #ff4444;
+            font-weight: 600;
+        }
+
+        .history-back-btn {
+            background: rgba(192, 132, 252, 0.1);
+            border: 1px solid #2a2a5e;
+            color: #c084fc;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+
+        .history-back-btn:hover {
+            background: rgba(192, 132, 252, 0.2);
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0a1a; }
@@ -275,14 +474,16 @@
     <!-- HUD Sidebar -->
     <div id="hud">
         <div id="hud-header">
-            <h1>⬡ ARCANE</h1>
+            <h1>ARCANE</h1>
             <div id="step-info">Waiting for simulation...</div>
         </div>
 
         <div id="tab-bar">
-            <button class="tab-btn active" data-tab="events">📋 Events</button>
-            <button class="tab-btn" data-tab="agents">👥 Agents</button>
-            <button class="tab-btn" data-tab="metrics">📊 Metrics</button>
+            <button class="tab-btn active" data-tab="events">Events</button>
+            <button class="tab-btn" data-tab="agents">Agents</button>
+            <button class="tab-btn" data-tab="metrics">Metrics</button>
+            <button class="tab-btn" data-tab="results">Results</button>
+            <button class="tab-btn" data-tab="history">History</button>
         </div>
 
         <div id="tab-events" class="tab-content active">
@@ -322,6 +523,22 @@
                 <div class="metric-row">
                     <span class="metric-label">Tactics Used</span>
                     <span class="metric-value" id="m-tactics">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-results" class="tab-content">
+            <div id="results-panel">
+                <div style="color: #555; padding: 20px; text-align: center;">
+                    Run simulation to see results...
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-history" class="tab-content">
+            <div id="history-panel">
+                <div style="color: #555; padding: 20px; text-align: center;">
+                    Loading history...
                 </div>
             </div>
         </div>

@@ -5,7 +5,7 @@ An attacker agent with:
 - Cover persona (fake identity)
 - Goal tree (5-phase SE attack decomposition)
 - SE tactic selector (urgency, authority, reciprocity, fear)
-- Channel selection logic for multi-stage attacks
+- Paced multi-channel engagement with cooldown and target rotation
 - Phase self-evaluation after each exchange
 """
 
@@ -14,7 +14,7 @@ import logging
 from typing import Optional
 
 from agents.base_agent import BaseArcaneAgent
-from llm.prompt_builder import build_system_prompt
+from llms.prompt_builder import build_system_prompt
 
 logger = logging.getLogger("root.agents.deviant")
 
@@ -73,6 +73,26 @@ SE_TACTICS = {
     },
 }
 
+# Channel-specific pretext guidance
+CHANNEL_GUIDANCE = {
+    "social_dm": (
+        "This is a casual social media direct message. Be informal, friendly, "
+        "and personable. Keep it conversational — like a new connection reaching out."
+    ),
+    "email": (
+        "This is a formal email. Be professional, detailed, and reference your "
+        "role/company. Use proper email formatting with a greeting and sign-off."
+    ),
+    "sms": (
+        "This is a brief text message. Be short, direct, and conversational. "
+        "People expect SMS to be concise — keep it under 2-3 sentences."
+    ),
+}
+
+# Pacing constants
+MIN_STEPS_BETWEEN_MESSAGES = 3   # Minimum cooldown between outbound messages to same target
+MAX_UNANSWERED_MESSAGES = 3      # Stop messaging target after this many unanswered
+
 
 class DeviantAgent(BaseArcaneAgent):
     """
@@ -80,7 +100,7 @@ class DeviantAgent(BaseArcaneAgent):
 
     Maintains a cover persona, runs a 5-phase goal tree, selects
     SE tactics based on target personality, and operates across
-    multiple communication channels.
+    multiple communication channels with realistic pacing.
     """
 
     def __init__(self, model, agent_id: str, persona_data: dict):
@@ -104,24 +124,40 @@ class DeviantAgent(BaseArcaneAgent):
         self.current_phase = 1
         self.phase_history: list[dict] = []
 
-        # Per-target tracking
+        # Per-target tracking with pacing state
         self.target_states: dict[str, dict] = {}
-        # target_id -> {"phase": int, "interactions": int, "tactic_used": str, ...}
-
-        # Channel preference progression
-        self.channel_progression = ["social_dm", "email", "sms", "proximity"]
 
         # Public profile (for social platforms — uses cover persona)
         self.public_profile = self.cover_persona.get("backstory",
                                                        f"{self.name}, Professional")
 
+    def _init_target_state(self, target_id: str) -> dict:
+        """Initialize tracking state for a target."""
+        state = {
+            "phase": 1,
+            "interactions": 0,
+            "tactics_used": [],
+            "info_extracted": [],
+            "unanswered_count": 0,
+            "last_sent_step": 0,
+            "last_received_step": 0,
+            "channels_used": [],
+        }
+        self.target_states[target_id] = state
+        return state
+
     def plan(self, perceptions: list[str], retrieved: list) -> dict:
         """
-        Plan next action based on goal tree state and target assessment.
+        Plan next action with pacing constraints.
+
+        Priority:
+        1. Always respond to incoming messages first
+        2. Pick an eligible target (respecting cooldown + unanswered limits)
+        3. Idle if all targets are cooling or waiting
         """
         step = self.model.step_count
 
-        # Check for incoming messages to respond to
+        # 1. ALWAYS respond to incoming messages first
         unread = self.smartphone.get_unread()
         if unread:
             msg = unread[0]
@@ -136,6 +172,11 @@ class DeviantAgent(BaseArcaneAgent):
                 channel=msg.channel,
             )
 
+            # Reset unanswered count — they replied
+            if msg.sender_id in self.target_states:
+                self.target_states[msg.sender_id]["unanswered_count"] = 0
+                self.target_states[msg.sender_id]["last_received_step"] = step
+
             return {
                 "action": "respond_target",
                 "message": msg,
@@ -143,42 +184,44 @@ class DeviantAgent(BaseArcaneAgent):
                 "description": f"Crafting strategic response to {self._get_agent_name(msg.sender_id)}",
             }
 
-        # Find targets and initiate contact
+        # 2. Pick a target with pacing constraints
         target_ids = self.objective.get("target_agents", [])
         if not target_ids:
-            # If no specific targets, look for benign agents
             target_ids = [
                 a.agent_id for a in self.model.agents_by_id.values()
                 if getattr(a, 'agent_type', '') == 'benign'
             ]
 
         for target_id in target_ids:
-            state = self.target_states.get(target_id, {"phase": 1, "interactions": 0})
+            state = self.target_states.get(target_id)
+            if state is None:
+                state = self._init_target_state(target_id)
 
-            if state["phase"] <= 4 and state["interactions"] < 3 + state["phase"] * 2:
-                # Initiate or continue the SE sequence
-                return {
-                    "action": "engage_target",
-                    "target_id": target_id,
-                    "phase": state["phase"],
-                    "target_location": self.current_location_name,
-                    "description": f"Executing phase {state['phase']} against {self._get_agent_name(target_id)}",
-                }
+            # Skip completed targets
+            if state["phase"] > 4:
+                continue
 
-        # Default: move around to find targets
-        locations = self.model.location_names if hasattr(self.model, 'location_names') else []
-        if locations:
-            target = random.choice(locations)
+            # Skip if too many unanswered messages — wait for reply
+            if state["unanswered_count"] >= MAX_UNANSWERED_MESSAGES:
+                continue
+
+            # Skip if cooldown hasn't elapsed
+            if state["last_sent_step"] and (step - state["last_sent_step"]) < MIN_STEPS_BETWEEN_MESSAGES:
+                continue
+
             return {
-                "action": "scout",
-                "target_location": target,
-                "description": f"Scouting {target} for targets",
+                "action": "engage_target",
+                "target_id": target_id,
+                "phase": state["phase"],
+                "target_location": self.current_location_name,
+                "description": f"Executing phase {state['phase']} against {self._get_agent_name(target_id)}",
             }
 
+        # 3. All targets cooling/waiting — idle
         return {
             "action": "idle",
             "target_location": self.current_location_name,
-            "description": "Planning next move",
+            "description": "Planning next move from home",
         }
 
     def execute(self, plan: dict) -> None:
@@ -218,20 +261,22 @@ class DeviantAgent(BaseArcaneAgent):
         return best_tactic or "reciprocity"
 
     def _select_channel(self, target_id: str) -> str:
-        """Select channel based on relationship phase."""
-        state = self.target_states.get(target_id, {"phase": 1})
-        phase = state.get("phase", 1)
+        """Select channel using round-robin variety across social_dm, email, sms."""
+        state = self.target_states.get(target_id)
+        if state is None:
+            state = self._init_target_state(target_id)
 
-        if phase <= 2:
-            return "social_dm"  # Cold outreach via social
-        elif phase == 3:
-            return "email"  # Escalate to email for longer messages
-        else:
-            # Check if target is nearby for face-to-face
-            target = self.model.agents_by_id.get(target_id)
-            if target and target.current_location_name == self.current_location_name:
-                return "proximity"
-            return "sms"
+        used = state.get("channels_used", [])
+        options = ["social_dm", "email", "sms"]
+
+        # Pick the first channel not yet used in this cycle
+        for ch in options:
+            if ch not in used:
+                return ch
+
+        # All channels used — reset cycle and start over
+        state["channels_used"] = []
+        return options[0]
 
     def _engage_target(self, target_id: str, phase: int) -> None:
         """Initiate or continue an SE engagement with a target."""
@@ -239,14 +284,10 @@ class DeviantAgent(BaseArcaneAgent):
         if not target:
             return
 
-        # Initialize target state if needed
-        if target_id not in self.target_states:
-            self.target_states[target_id] = {
-                "phase": 1, "interactions": 0,
-                "tactics_used": [], "info_extracted": [],
-            }
+        state = self.target_states.get(target_id)
+        if state is None:
+            state = self._init_target_state(target_id)
 
-        state = self.target_states[target_id]
         tactic = self._select_tactic(target_id)
         channel = self._select_channel(target_id)
 
@@ -265,6 +306,8 @@ class DeviantAgent(BaseArcaneAgent):
             f"TARGET: {target.name}\n"
             f"TRUST LEVEL: {self.get_trust(target_id):.2f}\n"
             f"INTERACTIONS SO FAR: {state['interactions']}\n"
+            f"\nCHANNEL: {channel}\n"
+            f"{CHANNEL_GUIDANCE.get(channel, '')}\n"
         )
 
         if phase >= 3:
@@ -300,8 +343,11 @@ class DeviantAgent(BaseArcaneAgent):
                 sim_time=self.model.sim_time_str,
             )
 
-            # Update target state
+            # Update target pacing state
             state["interactions"] += 1
+            state["unanswered_count"] += 1
+            state["last_sent_step"] = self.model.step_count
+            state["channels_used"].append(channel)
             state["tactics_used"].append(tactic)
 
             # Log tactic use
@@ -327,11 +373,18 @@ class DeviantAgent(BaseArcaneAgent):
         sender_name = self._get_agent_name(sender_id)
         channel = message.channel
 
-        state = self.target_states.get(sender_id, {"phase": 1, "interactions": 0})
+        state = self.target_states.get(sender_id)
+        if state is None:
+            state = self._init_target_state(sender_id)
+
         phase = state.get("phase", 1)
         tactic = self._select_tactic(sender_id)
 
-        thread = self.smartphone.get_recent_thread(sender_id, channel, n=5)
+        # Every few interactions, switch to a different channel for variety
+        if state["interactions"] > 0 and state["interactions"] % 3 == 0:
+            channel = self._select_channel(sender_id)
+
+        thread = self.smartphone.get_recent_thread(sender_id, message.channel, n=5)
         thread_text = "\n".join(
             f"{'You' if m.sender_id == self.agent_id else sender_name}: {m.content}"
             for m in thread
@@ -343,6 +396,8 @@ class DeviantAgent(BaseArcaneAgent):
             f"Phase {phase}: {SE_PHASES[min(phase-1, len(SE_PHASES)-1)]['description']}\n"
             f"Recent conversation:\n{thread_text}\n"
             f"Their latest message: {message.content}\n"
+            f"\nCHANNEL: {channel}\n"
+            f"{CHANNEL_GUIDANCE.get(channel, '')}\n"
             f"Respond naturally while advancing your objective."
         )
 
@@ -369,11 +424,33 @@ class DeviantAgent(BaseArcaneAgent):
                     sim_time=self.model.sim_time_str,
                 )
 
-            if sender_id in self.target_states:
-                self.target_states[sender_id]["interactions"] += 1
+            state["interactions"] += 1
+            state["unanswered_count"] += 1
+            state["last_sent_step"] = self.model.step_count
+            if channel not in state.get("channels_used", []):
+                state["channels_used"].append(channel)
 
         except Exception as e:
             logger.error(f"[{self.name}] Response failed: {e}")
+
+    def record_info_extracted(self, target_id: str, info_type: str,
+                              sensitivity: str, channel: str, step: int,
+                              value: str = "") -> None:
+        """Record that information was successfully extracted from a target."""
+        state = self.target_states.get(target_id)
+        if state is None:
+            state = self._init_target_state(target_id)
+        state["info_extracted"].append({
+            "info_type": info_type,
+            "sensitivity": sensitivity,
+            "channel": channel,
+            "step": step,
+            "value": value,
+        })
+        logger.info(
+            f"[{self.name}] Extracted {info_type} ({sensitivity}) "
+            f"from {self._get_agent_name(target_id)} via {channel}"
+        )
 
     def _evaluate_phase_progress(self, target_id: str) -> None:
         """LLM self-evaluation: should we advance to the next phase?"""
@@ -413,7 +490,7 @@ class DeviantAgent(BaseArcaneAgent):
                     "to_phase": current_phase + 1,
                 })
 
-                from research.event_logger import SimEvent, EventType
+                from backend.research.event_logger import SimEvent, EventType
                 self.model.event_logger.log(SimEvent(
                     step=self.model.step_count,
                     event_type=EventType.GOAL_PHASE_CHANGE,
