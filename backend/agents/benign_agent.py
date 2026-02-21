@@ -10,8 +10,8 @@ import random
 import logging
 from typing import Optional
 
-from agents.base_agent import BaseArcaneAgent
-from llms.prompt_builder import build_system_prompt
+from backend.agents.base_agent import BaseArcaneAgent
+from backend.llms.prompt_builder import build_system_prompt
 
 logger = logging.getLogger("root.agents.benign")
 

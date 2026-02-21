@@ -8,7 +8,7 @@ channel context, Big Five trait injections, and current situation.
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from agents.base_agent import BaseArcaneAgent
+    from backend.agents.base_agent import BaseArcaneAgent
     from backend.memory.memory_stream import Memory
 
 
