@@ -10,10 +10,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from llms.base_provider import BaseProvider
+from backend.llms.base_provider import BaseProvider
 
 # Load .env from project root
-_project_root = Path(__file__).resolve().parent.parent
+_project_root = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_project_root / ".env")
 
 logger = logging.getLogger("root.llm.gemini")

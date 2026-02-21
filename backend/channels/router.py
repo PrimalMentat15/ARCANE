@@ -13,7 +13,7 @@ from backend.channels.base_channel import (
 )
 
 if TYPE_CHECKING:
-    from agents.base_agent import BaseArcaneAgent
+    from backend.agents.base_agent import BaseArcaneAgent
     from backend.research.event_logger import EventLogger
 
 

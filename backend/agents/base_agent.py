@@ -14,7 +14,7 @@ from typing import Optional, Any
 
 from backend.memory.memory_stream import MemoryStream
 from backend.channels.smartphone import Smartphone
-from llms.prompt_builder import build_system_prompt
+from backend.llms.prompt_builder import build_system_prompt
 
 logger = logging.getLogger("root.agents")
 
