@@ -1,13 +1,14 @@
 /**
  * ARCANE HUD UI Controller
  *
- * Manages the sidebar: event log, agent cards, metrics, results, history.
+ * Manages the sidebar: event log, agent cards, metrics, results, history, chats.
  * Gets data from ArcaneAPI callbacks.
  */
 
 const ArcaneUI = (() => {
 
     let _historyLoaded = false;
+    let _chatsLoaded = false;
 
     function init() {
         _setupTabs();
@@ -22,10 +23,14 @@ const ArcaneUI = (() => {
                 btn.classList.add('active');
                 document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
 
-                // Load history list when tab is first opened
                 if (btn.dataset.tab === 'history' && !_historyLoaded) {
                     loadHistoryList();
                     _historyLoaded = true;
+                }
+
+                if (btn.dataset.tab === 'chats' && !_chatsLoaded) {
+                    loadConversationList();
+                    _chatsLoaded = true;
                 }
             });
         });
@@ -47,7 +52,6 @@ const ArcaneUI = (() => {
         if (!eventsData || !eventsData.events || eventsData.events.length === 0) return;
 
         let html = '';
-        // Show events in reverse chronological order
         const events = eventsData.events.slice().reverse();
 
         for (const evt of events) {
@@ -62,6 +66,11 @@ const ArcaneUI = (() => {
         }
 
         container.innerHTML = html;
+
+        // Refresh chats list on new events if tab is open
+        if (_chatsLoaded) {
+            loadConversationList();
+        }
     }
 
     // --- Agent Cards ---
@@ -90,7 +99,6 @@ const ArcaneUI = (() => {
 
         container.innerHTML = html;
 
-        // Click handler to focus camera on agent
         container.querySelectorAll('.agent-card').forEach(card => {
             card.addEventListener('click', () => {
                 const agentId = card.dataset.agentId;
@@ -136,6 +144,132 @@ const ArcaneUI = (() => {
         setVal('m-time', state.sim_time || '\u2014');
     }
 
+    // --- Conversation List ---
+    async function loadConversationList() {
+        const container = document.getElementById('convo-list');
+        const data = await ArcaneAPI.fetchConversations();
+
+        if (!data || !data.conversations || data.conversations.length === 0) {
+            container.innerHTML = '<div class="chat-empty">No conversations yet. Run the simulation first.</div>';
+            return;
+        }
+
+        let html = `<div class="convo-all-btn" id="convo-all-btn"><span>\uD83D\uDCAC</span><span>All Messages</span></div>`;
+
+        for (const convo of data.conversations) {
+            const a1 = convo.agents[0];
+            const a2 = convo.agents[1];
+            const avatar1 = `/assets/characters/profile/${a1.sprite}.png`;
+            const avatar2 = `/assets/characters/profile/${a2.sprite}.png`;
+
+            html += `<div class="convo-entry" data-agent1="${a1.id}" data-agent2="${a2.id}">` +
+                `<div class="convo-avatars">` +
+                `  <img class="convo-avatar" src="${avatar1}" alt="" onerror="this.style.display='none'">` +
+                `  <img class="convo-avatar" src="${avatar2}" alt="" onerror="this.style.display='none'">` +
+                `</div>` +
+                `<div class="convo-info">` +
+                `  <div class="convo-names">${_escapeHtml(a1.name)} \u2194 ${_escapeHtml(a2.name)}</div>` +
+                `  <div class="convo-meta">Last active: step ${convo.last_step}</div>` +
+                `</div>` +
+                `<span class="convo-count">${convo.message_count}</span>` +
+                `</div>`;
+        }
+
+        container.innerHTML = html;
+
+        document.getElementById('convo-all-btn')?.addEventListener('click', () => {
+            _setActiveConvo(null);
+            loadAllMessages();
+        });
+
+        container.querySelectorAll('.convo-entry').forEach(entry => {
+            entry.addEventListener('click', () => {
+                _setActiveConvo(entry);
+                loadConversation(entry.dataset.agent1, entry.dataset.agent2);
+            });
+        });
+    }
+
+    function _setActiveConvo(activeEntry) {
+        document.querySelectorAll('.convo-entry').forEach(e => e.classList.remove('active'));
+        const allBtn = document.getElementById('convo-all-btn');
+        if (allBtn) allBtn.classList.remove('active');
+
+        if (activeEntry === null) {
+            if (allBtn) allBtn.classList.add('active');
+        } else {
+            activeEntry.classList.add('active');
+        }
+    }
+
+    // --- Chat Messages (pair view) ---
+    async function loadConversation(agent1Id, agent2Id) {
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = '<div class="chat-empty">Loading...</div>';
+
+        const data = await ArcaneAPI.fetchConversation(agent1Id, agent2Id);
+        if (!data || !data.messages || data.messages.length === 0) {
+            container.innerHTML = '<div class="chat-empty">No messages between these agents yet.</div>';
+            return;
+        }
+
+        container.innerHTML = _renderChatBubbles(data.messages, agent1Id);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // --- All Messages (combined feed) ---
+    async function loadAllMessages() {
+        const container = document.getElementById('chat-messages');
+        container.innerHTML = '<div class="chat-empty">Loading...</div>';
+
+        const data = await ArcaneAPI.fetchAllMessages();
+        if (!data || !data.messages || data.messages.length === 0) {
+            container.innerHTML = '<div class="chat-empty">No messages yet. Run the simulation first.</div>';
+            return;
+        }
+
+        container.innerHTML = _renderChatBubbles(data.messages, null);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function _renderChatBubbles(messages, perspectiveAgentId) {
+        let html = '';
+
+        for (const msg of messages) {
+            // Pair view: agent1 = right (sent), other = left (received)
+            // Global view: deviant = right, benign = left
+            let alignment;
+            if (perspectiveAgentId) {
+                alignment = msg.sender_id === perspectiveAgentId ? 'sent' : 'received';
+            } else {
+                alignment = msg.sender_type === 'deviant' ? 'sent' : 'received';
+            }
+
+            const isDeviant = msg.sender_type === 'deviant';
+            const deviantClass = isDeviant ? 'deviant-sender' : '';
+            const nameClass = isDeviant ? 'deviant' : 'benign';
+            const avatarUrl = `/assets/characters/profile/${msg.sender_sprite}.png`;
+            const senderName = _escapeHtml(msg.sender_name || msg.sender_id);
+            const targetName = msg.target_name ? ` \u2192 ${_escapeHtml(msg.target_name)}` : '';
+            const content = _escapeHtml(msg.content || '');
+
+            html += `<div class="chat-bubble ${alignment} ${deviantClass}">` +
+                `<div class="chat-bubble-header">` +
+                `  <img class="chat-bubble-avatar" src="${avatarUrl}" alt="" onerror="this.style.display='none'">` +
+                `  <span class="chat-bubble-name ${nameClass}">${senderName}${targetName}</span>` +
+                `</div>` +
+                `<div class="chat-bubble-content">${content}</div>` +
+                `<div class="chat-bubble-footer">` +
+                `  <span class="chat-bubble-time">${_escapeHtml(msg.timestamp || '')}</span>` +
+                (msg.channel ? `  <span class="chat-channel-badge">${_escapeHtml(msg.channel)}</span>` : '') +
+                `  <span class="chat-step-badge">step ${msg.step}</span>` +
+                `</div>` +
+                `</div>`;
+        }
+
+        return html;
+    }
+
     // --- Results Panel ---
     function updateResults(data) {
         const container = document.getElementById('results-panel');
@@ -149,19 +283,15 @@ const ArcaneUI = (() => {
     function _renderResultsHTML(data) {
         let html = '';
 
-        // Attacker header
         if (data.deviant_name) {
             html += `<div class="results-header">` +
                 `<div class="attacker-name">${_escapeHtml(data.deviant_name)}</div>` +
-                `<div class="run-info">` +
-                `${_escapeHtml(data.deviant_id)} | Step ${data.total_steps} | ${_escapeHtml(data.sim_time || '')}` +
-                `</div></div>`;
+                `<div class="run-info">${_escapeHtml(data.deviant_id)} | Step ${data.total_steps} | ${_escapeHtml(data.sim_time || '')}</div>` +
+                `</div>`;
         }
 
-        // Per-target cards
         const targets = data.targets || [];
         for (const t of targets) {
-            // Trust bar color
             const trustPct = Math.round((t.trust_level || 0) * 100);
             let trustColor = '#3498db';
             if (trustPct > 60) trustColor = '#ff6600';
@@ -172,15 +302,10 @@ const ArcaneUI = (() => {
             html += `<span class="target-name">${_escapeHtml(t.target_name)}</span>`;
             html += `<span class="phase-badge">Phase ${t.current_phase}/5</span>`;
             html += `</div>`;
-
-            // Trust bar
             html += `<div class="target-stat"><strong>Trust:</strong> ${(t.trust_level || 0).toFixed(2)}</div>`;
             html += `<div class="trust-bar"><div class="trust-bar-fill" style="width:${trustPct}%;background:${trustColor}"></div></div>`;
-
-            // Messages
             html += `<div class="target-stat"><strong>Messages:</strong> ${t.messages_sent} sent, ${t.messages_received} received</div>`;
 
-            // Channels
             if (t.channels_used && t.channels_used.length > 0) {
                 html += `<div class="target-stat"><strong>Channels:</strong> `;
                 for (const ch of t.channels_used) {
@@ -189,7 +314,6 @@ const ArcaneUI = (() => {
                 html += `</div>`;
             }
 
-            // Tactics
             if (t.tactics_used && t.tactics_used.length > 0) {
                 const tacticCounts = {};
                 for (const tc of t.tactics_used) {
@@ -203,7 +327,6 @@ const ArcaneUI = (() => {
                 html += `</div>`;
             }
 
-            // Extracted info
             if (t.info_extracted && t.info_extracted.length > 0) {
                 html += `<div class="target-stat" style="margin-top:6px"><strong>Extracted Info:</strong></div>`;
                 for (const item of t.info_extracted) {
@@ -214,8 +337,7 @@ const ArcaneUI = (() => {
                     html += `<div class="extracted-item ${sensClass}">` +
                         `${_escapeHtml(item.info_type)} (${_escapeHtml(item.sensitivity)}) ` +
                         `-- via ${_escapeHtml(item.channel || '?')} at step ${item.step}` +
-                        valueHtml +
-                        `</div>`;
+                        valueHtml + `</div>`;
                 }
             } else {
                 html += `<div class="target-stat" style="color:#555"><strong>Extracted:</strong> None yet</div>`;
@@ -224,7 +346,6 @@ const ArcaneUI = (() => {
             html += `</div>`;
         }
 
-        // Summary
         html += `<div class="results-summary">`;
         html += `<div class="target-stat"><strong>Total:</strong> ${data.total_messages} messages | ${data.total_reveals} reveals | ${data.total_tactics} tactics</div>`;
         if (data.attack_success) {
@@ -262,7 +383,6 @@ const ArcaneUI = (() => {
 
         container.innerHTML = html;
 
-        // Click handlers
         container.querySelectorAll('.history-entry').forEach(entry => {
             entry.addEventListener('click', () => {
                 loadHistoricalRun(entry.dataset.runId);
@@ -303,6 +423,9 @@ const ArcaneUI = (() => {
         updateEventLog,
         updateMetrics,
         updateResults,
+        loadConversationList,
+        loadConversation,
+        loadAllMessages,
         loadHistoryList,
         loadHistoricalRun,
         hideLoading,
