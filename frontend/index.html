@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ARCANE — Social Engineering Simulation</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             background: #0a0a1a;
@@ -78,7 +83,9 @@
             border-bottom: 2px solid transparent;
         }
 
-        .tab-btn:hover { color: #aaa; }
+        .tab-btn:hover {
+            color: #aaa;
+        }
 
         .tab-btn.active {
             color: #c084fc;
@@ -116,16 +123,266 @@
             margin-right: 6px;
         }
 
-        .evt-message_sent { color: #00d2ff; }
-        .evt-message_received { color: #00ff88; }
-        .evt-information_revealed { color: #ff4444; font-weight: bold; }
-        .evt-trust_change { color: #ffaa00; }
-        .evt-tactic_used { color: #ff6600; }
-        .evt-goal_phase_change { color: #ff00ff; }
-        .evt-agent_action { color: #aaaacc; }
-        .evt-step_start { color: #444466; }
-        .evt-step_end { color: #444466; }
-        .evt-simulation_start { color: #60a5fa; }
+        .evt-message_sent {
+            color: #00d2ff;
+        }
+
+        .evt-message_received {
+            color: #00ff88;
+        }
+
+        .evt-information_revealed {
+            color: #ff4444;
+            font-weight: bold;
+        }
+
+        .evt-trust_change {
+            color: #ffaa00;
+        }
+
+        .evt-tactic_used {
+            color: #ff6600;
+        }
+
+        .evt-goal_phase_change {
+            color: #ff00ff;
+        }
+
+        .evt-agent_action {
+            color: #aaaacc;
+        }
+
+        .evt-step_start {
+            color: #444466;
+        }
+
+        .evt-step_end {
+            color: #444466;
+        }
+
+        .evt-simulation_start {
+            color: #60a5fa;
+        }
+
+        /* --- Chats Panel --- */
+        #chats-panel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        #convo-list {
+            border-bottom: 1px solid #1a1a3e;
+            max-height: 200px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        .convo-entry {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #111133;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+
+        .convo-entry:hover {
+            background: rgba(192, 132, 252, 0.06);
+        }
+
+        .convo-entry.active {
+            background: rgba(192, 132, 252, 0.12);
+            border-left: 3px solid #c084fc;
+        }
+
+        .convo-avatars {
+            display: flex;
+        }
+
+        .convo-avatar {
+            width: 24px;
+            height: 24px;
+            image-rendering: pixelated;
+            border-radius: 50%;
+            border: 2px solid #0d0d1f;
+        }
+
+        .convo-avatar:nth-child(2) {
+            margin-left: -8px;
+        }
+
+        .convo-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .convo-names {
+            font-size: 12px;
+            font-weight: 600;
+            color: #d0d0e0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .convo-meta {
+            font-size: 10px;
+            color: #666;
+            margin-top: 1px;
+        }
+
+        .convo-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: #c084fc;
+            background: rgba(192, 132, 252, 0.12);
+            padding: 2px 8px;
+            border-radius: 10px;
+            flex-shrink: 0;
+        }
+
+        .convo-all-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-bottom: 1px solid #111133;
+            cursor: pointer;
+            transition: background 0.15s;
+            color: #60a5fa;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .convo-all-btn:hover {
+            background: rgba(96, 165, 250, 0.06);
+        }
+
+        .convo-all-btn.active {
+            background: rgba(96, 165, 250, 0.12);
+            border-left: 3px solid #60a5fa;
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+
+        .chat-empty {
+            color: #555;
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 12px;
+        }
+
+        .chat-bubble {
+            max-width: 85%;
+            margin-bottom: 10px;
+            animation: chatFadeIn 0.2s ease;
+        }
+
+        @keyframes chatFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-bubble.sent {
+            margin-left: auto;
+        }
+
+        .chat-bubble.received {
+            margin-right: auto;
+        }
+
+        .chat-bubble-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 4px;
+        }
+
+        .chat-bubble-avatar {
+            width: 18px;
+            height: 18px;
+            image-rendering: pixelated;
+            border-radius: 50%;
+        }
+
+        .chat-bubble-name {
+            font-size: 10px;
+            font-weight: 600;
+            color: #aaa;
+        }
+
+        .chat-bubble-name.deviant {
+            color: #e74c3c;
+        }
+
+        .chat-bubble-name.benign {
+            color: #3498db;
+        }
+
+        .chat-bubble-content {
+            padding: 8px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+
+        .chat-bubble.sent .chat-bubble-content {
+            background: linear-gradient(135deg, #1e3a5f, #1a2d4a);
+            color: #c8ddf0;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-bubble.received .chat-bubble-content {
+            background: #1a1a3e;
+            color: #c8c8e0;
+            border-bottom-left-radius: 4px;
+        }
+
+        .chat-bubble.deviant-sender .chat-bubble-content {
+            background: linear-gradient(135deg, #3a1a1a, #4a1a2d);
+            color: #f0c8c8;
+        }
+
+        .chat-bubble-footer {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+            padding: 0 4px;
+        }
+
+        .chat-bubble-time {
+            font-size: 9px;
+            color: #555;
+        }
+
+        .chat-channel-badge {
+            font-size: 8px;
+            padding: 1px 5px;
+            border-radius: 3px;
+            background: rgba(0, 210, 255, 0.1);
+            color: #00d2ff;
+        }
+
+        .chat-step-badge {
+            font-size: 8px;
+            color: #555;
+            font-family: 'Consolas', monospace;
+        }
 
         /* --- Agent Cards --- */
         #agent-list {
@@ -426,15 +683,30 @@
         }
 
         /* Scrollbar styling */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0a0a1a; }
-        ::-webkit-scrollbar-thumb { background: #2a2a5e; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #3a3a7e; }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0a0a1a;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #2a2a5e;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3a3a7e;
+        }
 
         /* Loading overlay */
         #loading-overlay {
             position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background: #0a0a1a;
             display: flex;
             align-items: center;
@@ -457,11 +729,19 @@
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 0.5; }
-            50% { opacity: 1; }
+
+            0%,
+            100% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 1;
+            }
         }
     </style>
 </head>
+
 <body>
     <!-- Loading overlay -->
     <div id="loading-overlay">
@@ -480,6 +760,7 @@
 
         <div id="tab-bar">
             <button class="tab-btn active" data-tab="events">Events</button>
+            <button class="tab-btn" data-tab="chats">Chats</button>
             <button class="tab-btn" data-tab="agents">Agents</button>
             <button class="tab-btn" data-tab="metrics">Metrics</button>
             <button class="tab-btn" data-tab="results">Results</button>
@@ -535,6 +816,17 @@
             </div>
         </div>
 
+        <div id="tab-chats" class="tab-content">
+            <div id="chats-panel">
+                <div id="convo-list">
+                    <div class="chat-empty">Run simulation to see conversations...</div>
+                </div>
+                <div id="chat-messages">
+                    <div class="chat-empty">Select a conversation to view messages</div>
+                </div>
+            </div>
+        </div>
+
         <div id="tab-history" class="tab-content">
             <div id="history-panel">
                 <div style="color: #555; padding: 20px; text-align: center;">
@@ -549,4 +841,5 @@
     <script src="/static/ui.js"></script>
     <script src="/static/game.js"></script>
 </body>
+
 </html>

@@ -97,6 +97,48 @@ const ArcaneAPI = (() => {
     }
 
     /**
+     * Fetch list of conversation pairs.
+     */
+    async function fetchConversations() {
+        try {
+            const resp = await fetch('/api/conversations');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API conversations fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch conversation between two agents.
+     */
+    async function fetchConversation(agent1Id, agent2Id) {
+        try {
+            const resp = await fetch(`/api/conversations/${agent1Id}/${agent2Id}`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API conversation fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch all messages (combined feed).
+     */
+    async function fetchAllMessages() {
+        try {
+            const resp = await fetch('/api/conversations/all');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API all messages fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
      * Start polling for updates.
      */
     function startPolling(intervalMs = 1000) {
@@ -132,6 +174,9 @@ const ArcaneAPI = (() => {
         fetchResults,
         fetchHistory,
         fetchHistoricalResults,
+        fetchConversations,
+        fetchConversation,
+        fetchAllMessages,
         startPolling,
         onStateUpdate,
         onEventsUpdate,

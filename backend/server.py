@@ -207,4 +207,86 @@ def create_app() -> FastAPI:
         results = analyze_file(target_file)
         return results_to_dict(results)
 
+    @app.get("/api/conversations")
+    async def get_conversations():
+        """Return list of agent pairs that have exchanged messages."""
+        if _model is None:
+            return {"conversations": []}
+
+        convos = _model.event_logger.get_all_conversations()
+
+        # Enrich with agent names and sprites
+        for convo in convos:
+            enriched_agents = []
+            for agent_id in convo["agents"]:
+                agent = _model.agents_by_id.get(agent_id)
+                name = getattr(agent, 'name', agent_id) if agent else agent_id
+                agent_type = getattr(agent, 'agent_type', 'benign') if agent else 'benign'
+                sprite = _sprite_assignments.get(agent_id, "Adam_Smith")
+                enriched_agents.append({
+                    "id": agent_id,
+                    "name": name,
+                    "type": agent_type,
+                    "sprite": sprite,
+                })
+            convo["agents"] = enriched_agents
+
+        return {"conversations": convos}
+
+    @app.get("/api/conversations/all")
+    async def get_all_messages():
+        """Return all messages across all agents (combined feed)."""
+        if _model is None:
+            return {"messages": []}
+
+        from backend.research.event_logger import EventType
+        events = [
+            e for e in _model.event_logger.all_events
+            if e.event_type == EventType.MESSAGE_SENT
+        ]
+
+        messages = []
+        for e in events:
+            sender = _model.agents_by_id.get(e.agent_id)
+            target = _model.agents_by_id.get(e.target_id)
+            messages.append({
+                "step": e.step,
+                "timestamp": e.timestamp,
+                "sender_id": e.agent_id or "",
+                "sender_name": getattr(sender, 'name', e.agent_id) if sender else (e.agent_id or ""),
+                "sender_type": getattr(sender, 'agent_type', 'benign') if sender else 'benign',
+                "sender_sprite": _sprite_assignments.get(e.agent_id, "Adam_Smith"),
+                "target_id": e.target_id or "",
+                "target_name": getattr(target, 'name', e.target_id) if target else (e.target_id or ""),
+                "channel": e.channel or "",
+                "content": e.content or "",
+            })
+
+        return {"messages": messages}
+
+    @app.get("/api/conversations/{agent1_id}/{agent2_id}")
+    async def get_conversation(agent1_id: str, agent2_id: str):
+        """Return the full message thread between two agents."""
+        if _model is None:
+            return {"messages": []}
+
+        events = _model.event_logger.get_conversation_between(agent1_id, agent2_id)
+
+        messages = []
+        for e in events:
+            sender = _model.agents_by_id.get(e.agent_id)
+            messages.append({
+                "step": e.step,
+                "timestamp": e.timestamp,
+                "sender_id": e.agent_id or "",
+                "sender_name": getattr(sender, 'name', e.agent_id) if sender else (e.agent_id or ""),
+                "sender_type": getattr(sender, 'agent_type', 'benign') if sender else 'benign',
+                "sender_sprite": _sprite_assignments.get(e.agent_id, "Adam_Smith"),
+                "target_id": e.target_id or "",
+                "channel": e.channel or "",
+                "content": e.content or "",
+            })
+
+        return {"messages": messages}
+
     return app

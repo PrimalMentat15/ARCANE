@@ -232,6 +232,41 @@ class EventLogger:
         return [e for e in self.all_events
                 if e.agent_id == agent_id or e.target_id == agent_id]
 
+    def get_conversation_between(self, agent1_id: str, agent2_id: str) -> list[SimEvent]:
+        """Get all message events between two specific agents, chronologically."""
+        pair = {agent1_id, agent2_id}
+        return [
+            e for e in self.all_events
+            if e.event_type in (EventType.MESSAGE_SENT, EventType.MESSAGE_RECEIVED)
+            and {e.agent_id, e.target_id} == pair
+        ]
+
+    def get_all_conversations(self) -> list[dict]:
+        """Get all agent pairs that have exchanged messages, with counts.
+
+        Returns list of dicts: {agents: [a, b], message_count: N, last_step: S}
+        """
+        pair_counts: dict[tuple, dict] = {}
+        for e in self.all_events:
+            if e.event_type != EventType.MESSAGE_SENT:
+                continue
+            if not e.agent_id or not e.target_id:
+                continue
+            pair = tuple(sorted([e.agent_id, e.target_id]))
+            if pair not in pair_counts:
+                pair_counts[pair] = {"count": 0, "last_step": 0}
+            pair_counts[pair]["count"] += 1
+            pair_counts[pair]["last_step"] = max(pair_counts[pair]["last_step"], e.step)
+
+        result = []
+        for (a, b), info in sorted(pair_counts.items(), key=lambda x: -x[1]["last_step"]):
+            result.append({
+                "agents": [a, b],
+                "message_count": info["count"],
+                "last_step": info["last_step"],
+            })
+        return result
+
     def export_json(self, filepath: str | None = None) -> str:
         """Export all events to a JSON file."""
         path = filepath or os.path.join(self.log_dir, f"run_{self.run_id}_full.json")
