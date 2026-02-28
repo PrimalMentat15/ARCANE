@@ -14,10 +14,10 @@ from typing import Optional
 
 from backend.research.event_logger import EventLogger, SimEvent, EventType
 from backend.channels.router import ChannelRouter
-from agents.benign_agent import BenignAgent
-from agents.deviant_agent import DeviantAgent
-from llms.base_provider import BaseProvider
-from agents.personas.loader import load_persona
+from backend.agents.benign_agent import BenignAgent
+from backend.agents.deviant_agent import DeviantAgent
+from backend.llms.base_provider import BaseProvider
+from backend.agents.personas.loader import load_persona
 
 logger = logging.getLogger("root.model")
 
@@ -355,13 +355,13 @@ class ArcaneModel(mesa.Model):
 
         if cache_key not in self._llm_providers:
             if provider_name == "gemini":
-                from llms.gemini_provider import GeminiProvider
+                from backend.llms.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
             elif provider_name == "openrouter":
-                from llms.openrouter_provider import OpenRouterProvider
+                from backend.llms.openrouter_provider import OpenRouterProvider
                 self._llm_providers[cache_key] = OpenRouterProvider(model=model_name)
             else:
-                from llms.gemini_provider import GeminiProvider
+                from backend.llms.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
 
         return self._llm_providers[cache_key]
