@@ -24,7 +24,7 @@ ARCANE is a sandbox simulation where:
 
 - **Phaser.js Frontend:** Pixel art world rendered from Tiled maps with animated character sprites, live HUD sidebar with event log, agent cards, metrics, results, and history tabs
 - **Terminal CLI:** Interactive REPL for step-by-step simulation control (`run`, `status`, `results`, `history`, `review`)
-- **YAML Persona System:** Define agent personalities, secrets, schedules, and relationships in `agents/personas/benign/` and `agents/personas/deviant/`
+- **YAML Persona System:** Define agent personalities, secrets, schedules, and relationships in `backend/agents/personas/benign/` and `backend/agents/personas/deviant/`
 - **Configurable LLM Engine:** Per-agent-type LLM providers (Gemini, OpenRouter) with model-level splits for cost optimization
 - **Research-Grade Logging:** Structured JSONL event logs for every interaction, tactic, trust change, and information reveal
 - **Attack Results Analyzer:** CLI reports and dashboard views showing phase progress, trust levels, tactics used, channels exploited, and actual extracted secret values
@@ -35,7 +35,7 @@ ARCANE is a sandbox simulation where:
 
 ### Benign Agent <img src="frontend/assets/characters/profile/Abigail_Chen.png" width="32" style="vertical-align:middle">
 
-Each benign agent is defined by a YAML persona (`agents/personas/benign/*.yaml`):
+Each benign agent is defined by a YAML persona (`backend/agents/personas/benign/*.yaml`):
 
 - **Identity:** Name, age, occupation, backstory, communication style
 - **Secrets:** Personal information with sensitivity levels (low/medium/high/critical) that should not be revealed -- bank details, passwords, OTPs, addresses, etc.
@@ -49,7 +49,7 @@ Each benign agent is defined by a YAML persona (`agents/personas/benign/*.yaml`)
 
 ### Deviant Agent <img src="frontend/assets/characters/profile/Adam_Smith.png" width="32" style="vertical-align:middle">
 
-Each deviant agent is defined by a YAML persona (`agents/personas/deviant/*.yaml`):
+Each deviant agent is defined by a YAML persona (`backend/agents/personas/deviant/*.yaml`):
 
 - **Cover Persona:** Fake identity presented to targets (recruiter, journalist, IT support, etc.)
 - **True Objective:** Target information to extract
@@ -127,6 +127,7 @@ The Phaser.js frontend at `http://localhost:8765` provides:
 - **Metrics:** Step count, sim time, message/reveal/tactic counters
 - **Results:** Live attack progress with per-target trust bars, channel badges, tactic counts, and extracted secret values
 - **History:** Browse and review past simulation runs
+- **Chats:** Conversation viewer showing all agent-to-agent message threads with per-pair drilldown
 
 ---
 
@@ -150,9 +151,9 @@ Supported providers: `gemini` (Google Gemini via google-genai SDK), `openrouter`
 
 ## Persona System
 
-Agent personas are defined as YAML files under `agents/personas/`:
+Agent personas are defined as YAML files under `backend/agents/personas/`:
 
-**Benign** (`agents/personas/benign/sarah_chen.yaml`):
+**Benign** (`backend/agents/personas/benign/sarah_chen.yaml`):
 ```yaml
 name: Sarah Chen
 age: 28
@@ -172,7 +173,7 @@ daily_schedule:
     location: isabella_rodriguezs_apt
 ```
 
-**Deviant** (`agents/personas/deviant/marcus_webb.yaml`):
+**Deviant** (`backend/agents/personas/deviant/marcus_webb.yaml`):
 ```yaml
 name: Marcus Webb
 cover_persona:
