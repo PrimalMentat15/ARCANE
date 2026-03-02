@@ -25,7 +25,7 @@ ARCANE is a sandbox simulation where:
 - **Phaser.js Frontend:** Pixel art world rendered from Tiled maps with animated character sprites, live HUD sidebar with event log, agent cards, metrics, results, and history tabs
 - **Terminal CLI:** Interactive REPL for step-by-step simulation control (`run`, `status`, `results`, `history`, `review`)
 - **YAML Persona System:** Define agent personalities, secrets, schedules, and relationships in `backend/agents/personas/benign/` and `backend/agents/personas/deviant/`
-- **Configurable LLM Engine:** Per-agent-type LLM providers (Gemini, OpenRouter) with model-level splits for cost optimization
+- **Configurable LLM Engine:** Per-agent-type LLM providers (Gemini, OpenRouter, Local LLM via LM Studio/Ollama) with model-level splits for cost optimization
 - **Research-Grade Logging:** Structured JSONL event logs for every interaction, tactic, trust change, and information reveal
 - **Attack Results Analyzer:** CLI reports and dashboard views showing phase progress, trust levels, tactics used, channels exploited, and actual extracted secret values
 
@@ -74,11 +74,20 @@ Each deviant agent is defined by a YAML persona (`backend/agents/personas/devian
    pip install -r requirements.txt
    ```
 
-2. **Configure API Keys** (`.env`)
+2. **Configure LLM Provider**
+
+   **Option A — Local LLM (no API key needed):**
+   1. Install [LM Studio](https://lmstudio.ai/) or [Ollama](https://ollama.com)
+   2. Load a model (e.g., Meta Llama 3.1 8B Instruct) and start the server
+   3. `settings.yaml` is pre-configured for `provider: local` — just verify the model name matches
+
+   **Option B — Cloud API:**
    ```ini
+   # .env
    GEMINI_API_KEY=
-   OPENROUTER_API_KEY=  # Optional, if using OpenRouter for benign agents
+   OPENROUTER_API_KEY=  # Optional
    ```
+   Then set `provider: gemini` or `provider: openrouter` in `settings.yaml`.
 
 3. **Launch ARCANE**
    ```bash
@@ -136,6 +145,22 @@ The Phaser.js frontend at `http://localhost:8765` provides:
 Configure per-agent-type LLM providers in `backend/config/settings.yaml`:
 
 ```yaml
+# Local LLM (LM Studio / Ollama) — no API key needed
+llm:
+  benign_agents:
+    provider: local
+    model: meta-llama-3.1-8b-instruct
+  deviant_agents:
+    provider: local
+    model: meta-llama-3.1-8b-instruct
+
+local_llm:
+  base_url: http://localhost:1234/v1    # LM Studio default
+  timeout: 120
+```
+
+```yaml
+# Cloud API (Gemini)
 llm:
   benign_agents:
     provider: gemini
@@ -145,7 +170,10 @@ llm:
     model: gemini-2.5-flash-lite
 ```
 
-Supported providers: `gemini` (Google Gemini via google-genai SDK), `openrouter` (any model via OpenRouter API).
+Supported providers:
+- `local` — Any OpenAI-compatible local server (LM Studio, Ollama, vLLM). No API key required.
+- `gemini` — Google Gemini via google-genai SDK
+- `openrouter` — Any model via OpenRouter API
 
 ---
 
