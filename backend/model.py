@@ -360,6 +360,15 @@ class ArcaneModel(mesa.Model):
             elif provider_name == "openrouter":
                 from backend.llms.openrouter_provider import OpenRouterProvider
                 self._llm_providers[cache_key] = OpenRouterProvider(model=model_name)
+            elif provider_name == "local":
+                from backend.llms.local_provider import LocalLLMProvider
+                local_cfg = self.config.get("local_llm", {})
+                self._llm_providers[cache_key] = LocalLLMProvider(
+                    model=model_name,
+                    base_url=local_cfg.get("base_url", "http://localhost:1234/v1"),
+                    timeout=local_cfg.get("timeout", 120),
+                    embedding_model=local_cfg.get("embedding_model"),
+                )
             else:
                 from backend.llms.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)

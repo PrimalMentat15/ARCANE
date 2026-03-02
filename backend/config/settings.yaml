@@ -29,14 +29,31 @@ simulation:
 
 llm:
   benign_agents:
-    provider: gemini
-    model: gemini-2.0-flash-lite
+    provider: local
+    model: meta-llama-3.1-8b-instruct    # Model name as shown in LM Studio
   deviant_agents:
-    provider: gemini
-    model: gemini-2.5-flash-lite
+    provider: local
+    model: meta-llama-3.1-8b-instruct
   reflection:
-    provider: gemini
-    model: gemini-2.5-flash-lite
+    provider: local
+    model: meta-llama-3.1-8b-instruct
+
+  # -- Cloud providers (commented out, switch back anytime) --
+  # benign_agents:
+  #   provider: gemini
+  #   model: gemini-2.0-flash-lite
+  # deviant_agents:
+  #   provider: gemini
+  #   model: gemini-2.5-flash-lite
+  # reflection:
+  #   provider: gemini
+  #   model: gemini-2.5-flash-lite
+
+# Local LLM server configuration (LM Studio / Ollama / vLLM)
+local_llm:
+  base_url: http://localhost:1234/v1    # LM Studio default
+  timeout: 120                           # Seconds — increase for CPU-only inference
+  # embedding_model: null               # Set if you load an embedding model
 
 memory:
   retrieval_weights:
