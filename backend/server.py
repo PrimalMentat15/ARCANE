@@ -289,4 +289,182 @@ def create_app() -> FastAPI:
 
         return {"messages": messages}
 
+    # --- Setup API endpoints ---
+
+    @app.get("/api/setup/status")
+    async def get_setup_status():
+        """Check if the simulation model is initialized."""
+        return {
+            "ready": _model is not None,
+            "step": _model.step_count if _model else 0,
+        }
+
+    @app.get("/api/setup/personas")
+    async def get_setup_personas():
+        """Return all available personas with full metadata for the setup screen."""
+        from backend.agents.personas.loader import load_persona, list_available_personas
+
+        personas = []
+        for agent_type in ("benign", "deviant"):
+            for persona_id in list_available_personas(agent_type):
+                try:
+                    data = load_persona(persona_id)
+                    persona_info = {
+                        "id": persona_id,
+                        "name": data.get("name", persona_id),
+                        "type": data.get("type", agent_type),
+                        "age": data.get("age", ""),
+                        "occupation": data.get("occupation", ""),
+                        "backstory": data.get("backstory", ""),
+                        "sprite": data.get("sprite", "Adam_Smith"),
+                        "traits": data.get("traits", {}),
+                        "secrets_count": len(data.get("secrets", [])),
+                        "starting_location": data.get("starting_location", ""),
+                    }
+                    # Include cover persona for deviant display
+                    if agent_type == "deviant" and "cover_persona" in data:
+                        persona_info["cover_role"] = data["cover_persona"].get("role", "")
+                    personas.append(persona_info)
+                except Exception as e:
+                    logger.warning(f"Failed to load persona '{persona_id}': {e}")
+
+        return {"personas": personas}
+
+    @app.get("/api/setup/providers")
+    async def get_setup_providers():
+        """Return available LLM providers and current configuration."""
+        import yaml as _yaml
+
+        config_path = _BACKEND_DIR / "config" / "settings.yaml"
+        config = {}
+        if config_path.exists():
+            with open(config_path) as f:
+                config = _yaml.safe_load(f) or {}
+
+        llm_cfg = config.get("llm", {})
+        local_cfg = config.get("local_llm", {})
+
+        providers = [
+            {
+                "id": "local",
+                "name": "Local LLM (LM Studio / Ollama)",
+                "description": "Run models locally — no API key needed",
+                "requires_key": False,
+                "base_url": local_cfg.get("base_url", "http://localhost:1234/v1"),
+                "default_model": "meta-llama-3.1-8b-instruct",
+                "current": llm_cfg.get("benign_agents", {}).get("provider") == "local",
+            },
+            {
+                "id": "gemini",
+                "name": "Google Gemini API",
+                "description": "Cloud API — requires GEMINI_API_KEY in .env",
+                "requires_key": True,
+                "has_key": bool(os.environ.get("GEMINI_API_KEY")),
+                "default_model": "gemini-2.0-flash-lite",
+                "current": llm_cfg.get("benign_agents", {}).get("provider") == "gemini",
+            },
+        ]
+
+        return {"providers": providers}
+
+    @app.post("/api/setup/launch")
+    async def launch_simulation(body: dict):
+        """Create the simulation model with user-selected configuration.
+
+        Expected body:
+        {
+            "provider": "local" | "gemini",
+            "model": "model-name",
+            "agents": [
+                {"persona": "sarah_chen", "id": "agent_benign_1"},
+                {"persona": "marcus_webb", "id": "agent_deviant_1"},
+                ...
+            ]
+        }
+        """
+        global _model
+
+        if _model is not None:
+            return {"error": "Simulation already running. Restart the server to configure a new one."}
+
+        import yaml as _yaml
+
+        # Load base config
+        config_path = _BACKEND_DIR / "config" / "settings.yaml"
+        if config_path.exists():
+            with open(config_path) as f:
+                config = _yaml.safe_load(f) or {}
+        else:
+            config = {}
+
+        # Override LLM provider from user selection
+        provider = body.get("provider", "local")
+        model_name = body.get("model", "")
+
+        if provider == "local":
+            local_cfg = config.get("local_llm", {})
+            default_model = "meta-llama-3.1-8b-instruct"
+            config["llm"] = {
+                "benign_agents": {"provider": "local", "model": model_name or default_model},
+                "deviant_agents": {"provider": "local", "model": model_name or default_model},
+                "reflection": {"provider": "local", "model": model_name or default_model},
+            }
+        elif provider == "gemini":
+            default_model = "gemini-2.0-flash-lite"
+            config["llm"] = {
+                "benign_agents": {"provider": "gemini", "model": model_name or default_model},
+                "deviant_agents": {"provider": "gemini", "model": model_name or "gemini-2.5-flash-lite"},
+                "reflection": {"provider": "gemini", "model": model_name or "gemini-2.5-flash-lite"},
+            }
+
+        # Override agent roster from user selection
+        agent_defs = body.get("agents", [])
+        if agent_defs:
+            config.setdefault("simulation", {})["agents"] = agent_defs
+
+        # Create model
+        try:
+            from backend.model import ArcaneModel
+            _model = ArcaneModel(config=config)
+            _assign_sprites()
+
+            agent_count = len(_model.agents_by_id)
+            deviant_count = sum(1 for a in _model.agents_by_id.values()
+                                if getattr(a, 'agent_type', '') == 'deviant')
+
+            logger.info(f"Simulation launched via setup: {agent_count} agents "
+                        f"({deviant_count} deviant), provider={provider}")
+
+            return {
+                "success": True,
+                "agents": agent_count,
+                "deviant_count": deviant_count,
+                "benign_count": agent_count - deviant_count,
+                "provider": provider,
+                "model": model_name or "default",
+            }
+        except Exception as e:
+            logger.error(f"Failed to launch simulation: {e}")
+            return {"error": str(e)}
+
+    @app.post("/api/setup/test-connection")
+    async def test_llm_connection(body: dict):
+        """Test connectivity to a local LLM server."""
+        import httpx
+
+        base_url = body.get("base_url", "http://localhost:1234/v1")
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(f"{base_url}/models", timeout=5.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    models = [m.get("id", "unknown") for m in data.get("data", [])]
+                    return {"connected": True, "models": models}
+                else:
+                    return {"connected": False, "error": f"HTTP {resp.status_code}"}
+        except httpx.ConnectError:
+            return {"connected": False, "error": "Cannot connect. Is LM Studio running?"}
+        except Exception as e:
+            return {"connected": False, "error": str(e)}
+
     return app
