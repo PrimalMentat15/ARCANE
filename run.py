@@ -280,6 +280,7 @@ def main():
     parser.add_argument("--scenario", type=str, default=None, help="Scenario YAML file")
     parser.add_argument("--port", type=int, default=8765, help="Frontend server port")
     parser.add_argument("--no-server", action="store_true", help="Don't start the web frontend")
+    parser.add_argument("--no-setup", action="store_true", help="Skip setup screen, use settings.yaml directly")
     parser.add_argument("--headless", action="store_true", help="Run N steps and exit")
     parser.add_argument("--steps", type=int, default=10, help="Steps for headless mode")
     args = parser.parse_args()
@@ -290,33 +291,93 @@ def main():
     config = load_config()
     scenario = load_scenario(args.scenario)
 
-    # Create model
-    print("  Initializing model...")
-    from backend.model import ArcaneModel
-    model = ArcaneModel(scenario=scenario, config=config)
+    # Decide whether to use setup screen or direct mode
+    use_setup = not (args.headless or args.no_setup or args.no_server)
 
-    deviant_count = sum(1 for a in model.agents_by_id.values()
-                        if getattr(a, 'agent_type', '') == 'deviant')
-    benign_count = len(model.agents_by_id) - deviant_count
-    print(f"  Model loaded: {len(model.agents_by_id)} agents "
-          f"({deviant_count} deviant, {benign_count} benign)")
+    if use_setup:
+        # --- Setup Screen Mode ---
+        # Start server WITHOUT a model; frontend shows setup screen
+        print("  Starting server (setup mode)...")
+        from backend.server import create_app
+        import uvicorn
 
-    # Print LLM config
-    llm_cfg = config.get("llm", {})
-    benign_llm = llm_cfg.get("benign_agents", {})
-    deviant_llm = llm_cfg.get("deviant_agents", {})
-    print(f"  LLM (benign):  {benign_llm.get('provider', 'gemini')}/"
-          f"{benign_llm.get('model', 'default')}")
-    print(f"  LLM (deviant): {deviant_llm.get('provider', 'gemini')}/"
-          f"{deviant_llm.get('model', 'default')}")
+        app = create_app()
 
-    # Start web frontend server
-    if not args.no_server:
-        print(f"  Starting frontend server...")
-        start_server(model, args.port)
+        uv_config = uvicorn.Config(
+            app,
+            host="0.0.0.0",
+            port=args.port,
+            log_level="warning",
+        )
+        server = uvicorn.Server(uv_config)
+
+        thread = threading.Thread(target=server.run, daemon=True)
+        thread.start()
+
         print(f"  Frontend: http://localhost:{args.port}")
+        print()
+        print("  ┌─────────────────────────────────────────────┐")
+        print("  │  Open the dashboard to configure and launch │")
+        print("  │  the simulation via the setup screen.       │")
+        print("  └─────────────────────────────────────────────┘")
+        print()
 
-    print()
+        # Wait for model to be set via /api/setup/launch
+        from backend import server as _srv
+        print("  Waiting for simulation launch from setup screen...")
+        while _srv._model is None:
+            try:
+                time.sleep(0.5)
+            except KeyboardInterrupt:
+                print("\n  Goodbye!")
+                return
+
+        model = _srv._model
+        print(f"\n  Simulation launched!")
+        deviant_count = sum(1 for a in model.agents_by_id.values()
+                            if getattr(a, 'agent_type', '') == 'deviant')
+        benign_count = len(model.agents_by_id) - deviant_count
+        print(f"  Model loaded: {len(model.agents_by_id)} agents "
+              f"({deviant_count} deviant, {benign_count} benign)")
+
+        # Print LLM config
+        llm_cfg = model.config.get("llm", {})
+        benign_llm = llm_cfg.get("benign_agents", {})
+        deviant_llm = llm_cfg.get("deviant_agents", {})
+        print(f"  LLM (benign):  {benign_llm.get('provider', 'gemini')}/"
+              f"{benign_llm.get('model', 'default')}")
+        print(f"  LLM (deviant): {deviant_llm.get('provider', 'gemini')}/"
+              f"{deviant_llm.get('model', 'default')}")
+        print()
+
+    else:
+        # --- Direct Mode (old behavior) ---
+        print("  Initializing model...")
+        from backend.model import ArcaneModel
+        model = ArcaneModel(scenario=scenario, config=config)
+
+        deviant_count = sum(1 for a in model.agents_by_id.values()
+                            if getattr(a, 'agent_type', '') == 'deviant')
+        benign_count = len(model.agents_by_id) - deviant_count
+        print(f"  Model loaded: {len(model.agents_by_id)} agents "
+              f"({deviant_count} deviant, {benign_count} benign)")
+
+        # Print LLM config
+        llm_cfg = config.get("llm", {})
+        benign_llm = llm_cfg.get("benign_agents", {})
+        deviant_llm = llm_cfg.get("deviant_agents", {})
+        print(f"  LLM (benign):  {benign_llm.get('provider', 'gemini')}/"
+              f"{benign_llm.get('model', 'default')}")
+        print(f"  LLM (deviant): {deviant_llm.get('provider', 'gemini')}/"
+              f"{deviant_llm.get('model', 'default')}")
+
+        # Start web frontend server
+        if not args.no_server:
+            print(f"  Starting frontend server...")
+            start_server(model, args.port)
+            print(f"  Frontend: http://localhost:{args.port}")
+
+        print()
 
     # Headless mode: run and exit
     if args.headless:
@@ -365,3 +426,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
