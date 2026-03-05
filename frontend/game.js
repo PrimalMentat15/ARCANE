@@ -408,30 +408,35 @@ window.ArcaneGame.focusAgent = (agentId) => {
     if (scene) scene._focusOnAgent(agentId);
 };
 
-// --- Launch Phaser ---
-const config = {
-    type: Phaser.AUTO,
-    parent: 'game-container',
-    width: window.innerWidth - 380,  // subtract HUD width
-    height: window.innerHeight,
-    pixelArt: true,
-    backgroundColor: '#111122',
-    scene: ArcaneScene,
-    scale: {
-        mode: Phaser.Scale.RESIZE,
-        autoCenter: Phaser.Scale.NO_CENTER,
-    },
+// --- Init function: called by setup.js when ready ---
+window.ArcaneGame.init = () => {
+    if (window._arcaneGame) return; // already initialized
+
+    const config = {
+        type: Phaser.AUTO,
+        parent: 'game-container',
+        width: window.innerWidth - 380,  // subtract HUD width
+        height: window.innerHeight,
+        pixelArt: true,
+        backgroundColor: '#111122',
+        scene: ArcaneScene,
+        scale: {
+            mode: Phaser.Scale.RESIZE,
+            autoCenter: Phaser.Scale.NO_CENTER,
+        },
+    };
+
+    const game = new Phaser.Game(config);
+    window._arcaneGame = game;
+
+    // Store scene instance for external access
+    game.events.on('ready', () => {
+        window._arcaneScene = game.scene.getScene('ArcaneScene');
+    });
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        const hudWidth = 380;
+        game.scale.resize(window.innerWidth - hudWidth, window.innerHeight);
+    });
 };
-
-const game = new Phaser.Game(config);
-
-// Store scene instance for external access
-game.events.on('ready', () => {
-    window._arcaneScene = game.scene.getScene('ArcaneScene');
-});
-
-// Handle window resize
-window.addEventListener('resize', () => {
-    const hudWidth = 380;
-    game.scale.resize(window.innerWidth - hudWidth, window.innerHeight);
-});
