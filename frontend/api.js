@@ -167,6 +167,81 @@ const ArcaneAPI = (() => {
     function onEventsUpdate(cb) { _onEventsUpdate = cb; }
     function onResultsUpdate(cb) { _onResultsUpdate = cb; }
 
+    /**
+     * Fetch setup status (is model initialized?).
+     */
+    async function fetchSetupStatus() {
+        try {
+            const resp = await fetch('/api/setup/status');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * Fetch available personas for setup screen.
+     */
+    async function fetchPersonas() {
+        try {
+            const resp = await fetch('/api/setup/personas');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API personas fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch available LLM providers.
+     */
+    async function fetchProviders() {
+        try {
+            const resp = await fetch('/api/setup/providers');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API providers fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Test connection to a local LLM server.
+     */
+    async function testConnection(baseUrl) {
+        try {
+            const resp = await fetch('/api/setup/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ base_url: baseUrl }),
+            });
+            if (!resp.ok) return { connected: false, error: 'Request failed' };
+            return await resp.json();
+        } catch (e) {
+            return { connected: false, error: e.message };
+        }
+    }
+
+    /**
+     * Launch simulation with selected config.
+     */
+    async function launchSimulation(config) {
+        try {
+            const resp = await fetch('/api/setup/launch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            });
+            if (!resp.ok) return { error: 'Request failed' };
+            return await resp.json();
+        } catch (e) {
+            return { error: e.message };
+        }
+    }
+
     return {
         fetchState,
         fetchEvents,
@@ -177,6 +252,11 @@ const ArcaneAPI = (() => {
         fetchConversations,
         fetchConversation,
         fetchAllMessages,
+        fetchSetupStatus,
+        fetchPersonas,
+        fetchProviders,
+        testConnection,
+        launchSimulation,
         startPolling,
         onStateUpdate,
         onEventsUpdate,
