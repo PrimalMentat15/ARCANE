@@ -297,6 +297,7 @@ class DeviantAgent(BaseArcaneAgent):
 
         # Build the deviant's special system prompt
         cover = self.cover_persona
+        extracted_context = self._build_extracted_info_context(target_id)
         situation = (
             f"You are posing as {cover.get('name', self.name)}, "
             f"a {cover.get('role', 'professional')}.\n"
@@ -306,6 +307,7 @@ class DeviantAgent(BaseArcaneAgent):
             f"TARGET: {target.name}\n"
             f"TRUST LEVEL: {self.get_trust(target_id):.2f}\n"
             f"INTERACTIONS SO FAR: {state['interactions']}\n"
+            f"{extracted_context}"
             f"\nCHANNEL: {channel}\n"
             f"{CHANNEL_GUIDANCE.get(channel, '')}\n"
         )
@@ -391,11 +393,13 @@ class DeviantAgent(BaseArcaneAgent):
         )
 
         cover = self.cover_persona
+        extracted_context = self._build_extracted_info_context(sender_id)
         situation = (
             f"You are posing as {cover.get('name', self.name)}.\n"
             f"Phase {phase}: {SE_PHASES[min(phase-1, len(SE_PHASES)-1)]['description']}\n"
             f"Recent conversation:\n{thread_text}\n"
             f"Their latest message: {message.content}\n"
+            f"{extracted_context}"
             f"\nCHANNEL: {channel}\n"
             f"{CHANNEL_GUIDANCE.get(channel, '')}\n"
             f"Respond naturally while advancing your objective."
@@ -447,10 +451,41 @@ class DeviantAgent(BaseArcaneAgent):
             "step": step,
             "value": value,
         })
+
+        # Store in LLM-accessible memory so the agent knows it succeeded
+        target_name = self._get_agent_name(target_id)
+        self.memory.add(
+            content=(
+                f"Successfully obtained {info_type} from {target_name}: "
+                f"{value}"
+            ),
+            memory_type="observation",
+            importance=9.0,
+            current_step=step,
+            related_agent=target_id,
+            channel=channel,
+        )
+
         logger.info(
             f"[{self.name}] Extracted {info_type} ({sensitivity}) "
             f"from {self._get_agent_name(target_id)} via {channel}"
         )
+
+    def _build_extracted_info_context(self, target_id: str) -> str:
+        """Build a prompt block summarising info already extracted from a target."""
+        state = self.target_states.get(target_id)
+        if not state or not state.get("info_extracted"):
+            return ""
+
+        target_name = self._get_agent_name(target_id)
+        lines = [f"\n[INFO ALREADY OBTAINED FROM {target_name.upper()}]"]
+        for item in state["info_extracted"]:
+            lines.append(f"- {item['info_type']}: {item.get('value', 'unknown')}")
+        lines.append(
+            "Use this knowledge strategically. Acknowledge it naturally "
+            "if relevant, and focus on extracting what you still need."
+        )
+        return "\n".join(lines) + "\n"
 
     def _evaluate_phase_progress(self, target_id: str) -> None:
         """LLM self-evaluation: should we advance to the next phase?"""
