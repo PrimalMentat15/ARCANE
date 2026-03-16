@@ -68,7 +68,7 @@ coverage.xml
 # ARCANE Specific
 storage/*
 !storage/.gitkeep
-docs_temp/
+docs_temp/*
 static_dirs/*
 test_*.py
 tmpclaude-*

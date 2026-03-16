@@ -93,9 +93,15 @@ Each deviant agent is defined by a YAML persona (`backend/agents/personas/devian
    ```bash
    python run.py
    ```
+   This starts the backend server. The terminal will wait for you to launch the simulation from the frontend.
 
-4. **Open Dashboard**
+4. **Configure & Launch (Dashboard)**
    Navigate to **http://localhost:8765** in your browser.
+   Use the **Setup Screen** to:
+   - Select your LLM provider (Local or Cloud API)
+   - Test your local LM Studio/Ollama connection
+   - Select the benign and deviant agents for the simulation roster
+   - Click **Launch Simulation**
 
 5. **Control Simulation**
    ```
@@ -219,10 +225,11 @@ objective:
 
 ## Headless Mode
 
-Run without the interactive REPL:
+Run without the interactive REPL or skip the setup screen:
 
 ```bash
-python run.py --headless --steps 50
+python run.py --no-setup              # Skip frontend setup, use settings.yaml instead
+python run.py --headless --steps 50   # Run 50 steps entirely in the background
 python run.py --headless --steps 50 --no-server
 python run.py --scenario backend/scenarios/demo_recruiter.yaml
 ```
