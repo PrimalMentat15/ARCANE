@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from backend.research.event_logger import EventLogger, SimEvent, EventType
+from backend.research.sim_recorder import SimRecorder
 from backend.channels.router import ChannelRouter
 from backend.agents.benign_agent import BenignAgent
 from backend.agents.deviant_agent import DeviantAgent
@@ -81,6 +82,13 @@ class ArcaneModel(mesa.Model):
             log_dir=self.config.get("logging", {}).get("log_dir", "storage/logs"),
         )
 
+        # Simulation recorder (captures full state snapshots for replay)
+        rec_cfg = self.config.get("recording", {})
+        self.recorder = SimRecorder(
+            recording_dir=rec_cfg.get("dir", "storage/recordings"),
+            save_interval=rec_cfg.get("save_interval", 5),
+        ) if rec_cfg.get("enabled", True) else None
+
         # Channel router
         channels_cfg = self.config.get("channels", {})
         self.channel_router = ChannelRouter(
@@ -131,6 +139,10 @@ class ArcaneModel(mesa.Model):
             },
         ))
 
+        # Initialize recording (captures initial frame at step 0)
+        if self.recorder:
+            self.recorder.init_recording(self)
+
         logger.info(f"ARCANE Model initialized: {len(self.agents_by_id)} agents, "
                      f"{len(self.location_names)} locations")
 
@@ -176,6 +188,10 @@ class ArcaneModel(mesa.Model):
 
         # Step end log
         self.event_logger.log_step_end(self.step_count, sim_time)
+
+        # Capture recording frame
+        if self.recorder:
+            self.recorder.capture_step(self)
 
     def _create_agents(self) -> None:
         """Create agents from config or scenario definition.

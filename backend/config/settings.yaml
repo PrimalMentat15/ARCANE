@@ -72,6 +72,11 @@ channels:
   email_delivery_delay_steps: 2       # Steps before email is delivered
   dm_delivery_delay_steps: 1          # Steps before DM is delivered
 
+recording:
+  enabled: true                       # Auto-record every sim run for replay
+  dir: storage/recordings             # Directory for .arcane recording files
+  save_interval: 5                    # Auto-save every N steps (0 = only on end)
+
 logging:
   level: INFO
   log_dir: storage/logs
