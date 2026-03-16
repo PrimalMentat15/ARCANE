@@ -242,6 +242,62 @@ const ArcaneAPI = (() => {
         }
     }
 
+    /**
+     * Fetch list of available simulation recordings.
+     */
+    async function fetchRecordings() {
+        try {
+            const resp = await fetch('/api/recordings');
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API recordings fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch metadata for a specific recording.
+     */
+    async function fetchRecordingMeta(runId) {
+        try {
+            const resp = await fetch(`/api/recordings/${runId}`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API recording meta fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch a single frame (state + events) for a recording step.
+     */
+    async function fetchRecordingFrame(runId, step) {
+        try {
+            const resp = await fetch(`/api/recordings/${runId}/step/${step}`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API recording frame fetch failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Fetch the full recording (all frames) for client-side replay.
+     */
+    async function fetchRecordingFull(runId) {
+        try {
+            const resp = await fetch(`/api/recordings/${runId}/full`);
+            if (!resp.ok) return null;
+            return await resp.json();
+        } catch (e) {
+            console.warn('API recording full fetch failed:', e);
+            return null;
+        }
+    }
+
     return {
         fetchState,
         fetchEvents,
@@ -257,9 +313,14 @@ const ArcaneAPI = (() => {
         fetchProviders,
         testConnection,
         launchSimulation,
+        fetchRecordings,
+        fetchRecordingMeta,
+        fetchRecordingFrame,
+        fetchRecordingFull,
         startPolling,
         onStateUpdate,
         onEventsUpdate,
         onResultsUpdate,
     };
 })();
+

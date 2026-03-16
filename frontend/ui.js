@@ -9,6 +9,7 @@ const ArcaneUI = (() => {
 
     let _historyLoaded = false;
     let _chatsLoaded = false;
+    let _recordingsLoaded = false;
 
     function init() {
         _setupTabs();
@@ -31,6 +32,11 @@ const ArcaneUI = (() => {
                 if (btn.dataset.tab === 'chats' && !_chatsLoaded) {
                     loadConversationList();
                     _chatsLoaded = true;
+                }
+
+                if (btn.dataset.tab === 'recordings' && !_recordingsLoaded) {
+                    loadRecordingsList();
+                    _recordingsLoaded = true;
                 }
             });
         });
@@ -417,6 +423,306 @@ const ArcaneUI = (() => {
         if (overlay) overlay.classList.add('hidden');
     }
 
+    // ==========================================================
+    //  REPLAY CONTROLLER
+    // ==========================================================
+
+    let _replayData = null;      // Full recording data { metadata, frames }
+    let _replayStep = 0;         // Current frame index
+    let _replayPlaying = false;
+    let _replayTimer = null;
+    let _replaySpeed = 1;        // Multiplier (0.5, 1, 2, 4)
+    const _REPLAY_BASE_INTERVAL = 1000; // 1s per step at 1x speed
+
+    /**
+     * Load the recording list into the recordings tab.
+     */
+    async function loadRecordingsList() {
+        const container = document.getElementById('recordings-panel');
+        if (!container) return;
+        container.innerHTML = '<div style="color:#555;padding:20px;text-align:center">Loading recordings...</div>';
+
+        const data = await ArcaneAPI.fetchRecordings();
+        if (!data || !data.recordings || data.recordings.length === 0) {
+            container.innerHTML = '<div style="color:#555;padding:20px;text-align:center">No recordings found. Run a simulation first.</div>';
+            return;
+        }
+
+        let html = '';
+        for (const rec of data.recordings) {
+            const created = (rec.created_at || '').slice(0, 19).replace('T', ' ');
+            const agentNames = Object.values(rec.agents || {}).map(a => a.name).join(', ');
+
+            html += `<div class="recording-entry" data-run-id="${_escapeHtml(rec.run_id)}">` +
+                `<div class="rec-header">` +
+                `  <span class="rec-id">${_escapeHtml(rec.run_id)}</span>` +
+                `  <span class="rec-steps">${rec.total_steps} steps</span>` +
+                `</div>` +
+                `<div class="rec-meta">${created} • ${rec.agent_count} agents • ${rec.size_kb}KB</div>` +
+                `<div class="rec-agents">${_escapeHtml(agentNames)}</div>` +
+                `<button class="rec-play-btn" data-run-id="${_escapeHtml(rec.run_id)}">▶ Replay</button>` +
+                `</div>`;
+        }
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.rec-play-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                startReplay(btn.dataset.runId);
+            });
+        });
+    }
+
+    /**
+     * Start replay mode: load full recording and show controls.
+     */
+    async function startReplay(runId) {
+        const controls = document.getElementById('replay-controls');
+        const statusEl = document.getElementById('replay-status');
+        if (controls) controls.classList.remove('hidden');
+        if (statusEl) statusEl.textContent = 'Loading recording...';
+
+        const data = await ArcaneAPI.fetchRecordingFull(runId);
+        if (!data || data.error || !data.frames || data.frames.length === 0) {
+            if (statusEl) statusEl.textContent = 'Failed to load recording.';
+            return;
+        }
+
+        _replayData = data;
+        _replayStep = 0;
+        _replayPlaying = false;
+        _replaySpeed = 1;
+
+        // Update UI
+        const totalSteps = data.frames.length - 1;
+        const timeline = document.getElementById('replay-timeline');
+        if (timeline) {
+            timeline.max = totalSteps;
+            timeline.value = 0;
+        }
+
+        const speedEl = document.getElementById('replay-speed-label');
+        if (speedEl) speedEl.textContent = '1x';
+
+        // Enter replay mode in the game
+        if (window.ArcaneGame && window.ArcaneGame.setReplayMode) {
+            window.ArcaneGame.setReplayMode(true);
+        }
+
+        // Show the first frame
+        _applyReplayFrame(0);
+
+        // Update step info to show replay mode
+        const stepInfo = document.getElementById('step-info');
+        if (stepInfo) stepInfo.textContent = `⏪ REPLAY: ${runId}`;
+
+        if (statusEl) statusEl.textContent = `Ready — ${data.frames.length} frames`;
+
+        _setupReplayControls();
+    }
+
+    /**
+     * Apply a specific frame index to the game and UI.
+     */
+    function _applyReplayFrame(frameIndex) {
+        if (!_replayData || !_replayData.frames) return;
+
+        const clampedIndex = Math.max(0, Math.min(frameIndex, _replayData.frames.length - 1));
+        _replayStep = clampedIndex;
+
+        const frame = _replayData.frames[clampedIndex];
+        if (!frame) return;
+
+        // Update timeline slider
+        const timeline = document.getElementById('replay-timeline');
+        if (timeline) timeline.value = clampedIndex;
+
+        // Update step counter
+        const counter = document.getElementById('replay-step-counter');
+        if (counter) counter.textContent = `${frame.step} / ${_replayData.metadata.total_steps}`;
+
+        // Update sim time
+        const timeEl = document.getElementById('replay-sim-time');
+        if (timeEl) timeEl.textContent = frame.sim_time || '';
+
+        // Apply agent states to the game
+        if (window.ArcaneGame && window.ArcaneGame.applyReplayFrame) {
+            window.ArcaneGame.applyReplayFrame(frame, _replayData.metadata.agents);
+        }
+
+        // Update events log with this frame's events
+        if (frame.events && frame.events.length > 0) {
+            const eventsData = {
+                events: frame.events.map(e => ({
+                    step: e.step,
+                    type: e.event_type,
+                    timestamp: e.timestamp,
+                    agent: e.agent_id || '',
+                    target: e.target_id || '',
+                    content: e.content || '',
+                }))
+            };
+            updateEventLog(eventsData);
+        }
+
+        // Update agent cards from frame state
+        _updateAgentCardsFromFrame(frame, _replayData.metadata.agents);
+    }
+
+    /**
+     * Update agent cards from a recorded frame.
+     */
+    function _updateAgentCardsFromFrame(frame, agentsRoster) {
+        const container = document.getElementById('agent-list');
+        if (!container || !frame.agent_states) return;
+
+        let html = '';
+        for (const [id, state] of Object.entries(frame.agent_states)) {
+            const roster = (agentsRoster || {})[id] || {};
+            const name = roster.name || id;
+            const type = roster.type || 'benign';
+            const sprite = roster.sprite || 'Adam_Smith';
+            const portraitUrl = `/assets/characters/profile/${sprite}.png`;
+
+            html += `<div class="agent-card ${type}" data-agent-id="${id}">` +
+                `  <div class="agent-card-header">` +
+                `    <img class="agent-portrait" src="${portraitUrl}" alt="${name}" onerror="this.style.display='none'">` +
+                `    <span class="agent-name">${_escapeHtml(name)}</span>` +
+                `    <span class="agent-type-badge ${type}">${type}</span>` +
+                `  </div>` +
+                `  <div class="agent-detail"><strong>Location:</strong> ${_escapeHtml(state.location || 'unknown')}</div>` +
+                `  <div class="agent-detail"><strong>Activity:</strong> ${_escapeHtml(state.activity || 'idle')}</div>` +
+                `  <div class="agent-detail"><strong>Pos:</strong> (${state.pos[0]}, ${state.pos[1]})</div>` +
+                `</div>`;
+        }
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * Set up replay control button event listeners.
+     */
+    function _setupReplayControls() {
+        // Play/Pause
+        const playBtn = document.getElementById('replay-play-btn');
+        if (playBtn) {
+            playBtn.onclick = () => {
+                if (_replayPlaying) {
+                    _pauseReplay();
+                } else {
+                    _playReplay();
+                }
+            };
+        }
+
+        // Step forward
+        const stepFwdBtn = document.getElementById('replay-step-fwd');
+        if (stepFwdBtn) {
+            stepFwdBtn.onclick = () => {
+                _pauseReplay();
+                if (_replayStep < (_replayData?.frames?.length || 0) - 1) {
+                    _applyReplayFrame(_replayStep + 1);
+                }
+            };
+        }
+
+        // Step backward
+        const stepBackBtn = document.getElementById('replay-step-back');
+        if (stepBackBtn) {
+            stepBackBtn.onclick = () => {
+                _pauseReplay();
+                if (_replayStep > 0) {
+                    _applyReplayFrame(_replayStep - 1);
+                }
+            };
+        }
+
+        // Speed
+        const speedBtn = document.getElementById('replay-speed-btn');
+        if (speedBtn) {
+            speedBtn.onclick = () => {
+                const speeds = [0.5, 1, 2, 4];
+                const idx = speeds.indexOf(_replaySpeed);
+                _replaySpeed = speeds[(idx + 1) % speeds.length];
+                const label = document.getElementById('replay-speed-label');
+                if (label) label.textContent = `${_replaySpeed}x`;
+
+                // Restart timer if playing
+                if (_replayPlaying) {
+                    _pauseReplay();
+                    _playReplay();
+                }
+            };
+        }
+
+        // Timeline scrubber
+        const timeline = document.getElementById('replay-timeline');
+        if (timeline) {
+            timeline.oninput = () => {
+                _pauseReplay();
+                _applyReplayFrame(parseInt(timeline.value, 10));
+            };
+        }
+
+        // Exit replay
+        const exitBtn = document.getElementById('replay-exit-btn');
+        if (exitBtn) {
+            exitBtn.onclick = () => {
+                exitReplay();
+            };
+        }
+    }
+
+    function _playReplay() {
+        if (!_replayData) return;
+        _replayPlaying = true;
+
+        const playBtn = document.getElementById('replay-play-btn');
+        if (playBtn) playBtn.textContent = '⏸';
+
+        const interval = _REPLAY_BASE_INTERVAL / _replaySpeed;
+        _replayTimer = setInterval(() => {
+            if (_replayStep < _replayData.frames.length - 1) {
+                _applyReplayFrame(_replayStep + 1);
+            } else {
+                _pauseReplay();
+            }
+        }, interval);
+    }
+
+    function _pauseReplay() {
+        _replayPlaying = false;
+        if (_replayTimer) {
+            clearInterval(_replayTimer);
+            _replayTimer = null;
+        }
+        const playBtn = document.getElementById('replay-play-btn');
+        if (playBtn) playBtn.textContent = '▶';
+    }
+
+    /**
+     * Exit replay mode and return to live simulation.
+     */
+    function exitReplay() {
+        _pauseReplay();
+        _replayData = null;
+        _replayStep = 0;
+
+        // Hide controls
+        const controls = document.getElementById('replay-controls');
+        if (controls) controls.classList.add('hidden');
+
+        // Exit replay mode in game
+        if (window.ArcaneGame && window.ArcaneGame.setReplayMode) {
+            window.ArcaneGame.setReplayMode(false);
+        }
+
+        // Restore step info
+        const stepInfo = document.getElementById('step-info');
+        if (stepInfo) stepInfo.textContent = 'Waiting for simulation...';
+    }
+
     return {
         init,
         updateFromState,
@@ -428,6 +734,10 @@ const ArcaneUI = (() => {
         loadAllMessages,
         loadHistoryList,
         loadHistoricalRun,
+        loadRecordingsList,
+        startReplay,
+        exitReplay,
         hideLoading,
     };
 })();
+
