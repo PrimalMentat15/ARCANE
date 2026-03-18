@@ -100,7 +100,7 @@ class ChannelRouter:
                         agent_id=msg.recipient_id,
                         target_id=msg.sender_id,
                         channel=channel_name,
-                        content=f"Received {channel_name}: {msg.content[:80]}",
+                        content=f"Delivered {channel_name} message to {msg.recipient_id}",
                     ))
 
                 all_delivered.extend(delivered)
