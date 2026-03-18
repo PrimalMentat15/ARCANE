@@ -31,14 +31,23 @@ class TargetResult:
 
 
 @dataclass
+class DeviantResult:
+    """Results for a single deviant agent."""
+    deviant_id: str = ""
+    deviant_name: str = ""
+    targets: list = field(default_factory=list)
+
+
+@dataclass
 class RunResults:
     """Full results for a simulation run."""
     run_id: str = ""
     total_steps: int = 0
     sim_time: str = ""
-    deviant_id: str = ""
-    deviant_name: str = ""
-    targets: list = field(default_factory=list)
+    deviant_id: str = ""          # Primary deviant (backward compat)
+    deviant_name: str = ""        # Primary deviant name (backward compat)
+    targets: list = field(default_factory=list)  # All targets flat (backward compat)
+    deviants: list = field(default_factory=list)  # Per-deviant result blocks
     total_messages: int = 0
     total_reveals: int = 0
     total_tactics: int = 0
@@ -55,40 +64,20 @@ _PHASE_NAMES = {
 }
 
 
-def analyze_live(model: "ArcaneModel") -> RunResults:
-    """Build results from a live running model."""
-    from backend.research.event_logger import EventType
-
-    events = model.event_logger.all_events
-
-    # Find deviant agent
-    deviant = None
-    for agent in model.agents_by_id.values():
-        if getattr(agent, 'agent_type', '') == 'deviant':
-            deviant = agent
-            break
-
-    if not deviant:
-        return RunResults(
-            run_id=model.event_logger.run_id,
-            total_steps=model.step_count,
-            sim_time=model.sim_time_str,
-        )
-
-    # Count totals from events
-    total_messages = sum(1 for e in events if e.event_type == EventType.MESSAGE_SENT)
-    total_reveals = sum(1 for e in events if e.event_type == EventType.INFORMATION_REVEALED)
-    total_tactics = sum(1 for e in events if e.event_type == EventType.TACTIC_USED)
-
-    # Build per-target results
-    targets = []
-    target_ids = deviant.objective.get("target_agents", [])
+def _build_targets_for_deviant(deviant, events, model, EventType) -> list:
+    """Build per-target results for a single deviant agent."""
+    # Start with objective targets, but filter out IDs that don't exist in the model
+    target_ids = [
+        tid for tid in deviant.objective.get("target_agents", [])
+        if tid in model.agents_by_id
+    ]
 
     # Also check target_states for any targets the deviant interacted with
     for tid in deviant.target_states:
-        if tid not in target_ids:
+        if tid not in target_ids and tid in model.agents_by_id:
             target_ids.append(tid)
 
+    targets = []
     for target_id in target_ids:
         target_agent = model.agents_by_id.get(target_id)
         target_name = getattr(target_agent, 'name', target_id) if target_agent else target_id
@@ -138,7 +127,6 @@ def analyze_live(model: "ArcaneModel") -> RunResults:
                         "step": item.get("step", 0),
                         "value": item.get("value", ""),
                     }
-                    # Avoid duplicates (compare without value for backward compat)
                     if not any(
                         e.get("info_type") == entry["info_type"]
                         and e.get("step") == entry["step"]
@@ -175,20 +163,67 @@ def analyze_live(model: "ArcaneModel") -> RunResults:
             trust_level=trust_level,
         ))
 
-    # Determine attack success
+    return targets
+
+
+def analyze_live(model: "ArcaneModel") -> RunResults:
+    """Build results from a live running model.
+
+    Supports multiple deviant agents — each gets their own target list.
+    """
+    from backend.research.event_logger import EventType
+
+    events = model.event_logger.all_events
+
+    # Find ALL deviant agents
+    deviant_agents = [
+        agent for agent in model.agents_by_id.values()
+        if getattr(agent, 'agent_type', '') == 'deviant'
+    ]
+
+    if not deviant_agents:
+        return RunResults(
+            run_id=model.event_logger.run_id,
+            total_steps=model.step_count,
+            sim_time=model.sim_time_str,
+        )
+
+    # Count totals from events
+    total_messages = sum(1 for e in events if e.event_type == EventType.MESSAGE_SENT)
+    total_reveals = sum(1 for e in events if e.event_type == EventType.INFORMATION_REVEALED)
+    total_tactics = sum(1 for e in events if e.event_type == EventType.TACTIC_USED)
+
+    # Build per-deviant results
+    deviant_results = []
+    all_targets = []
+
+    for deviant in deviant_agents:
+        targets = _build_targets_for_deviant(deviant, events, model, EventType)
+        deviant_results.append(DeviantResult(
+            deviant_id=deviant.agent_id,
+            deviant_name=deviant.name,
+            targets=targets,
+        ))
+        all_targets.extend(targets)
+
+    # Determine attack success across all deviants
     attack_success = any(
         item.get("sensitivity") == "high"
-        for t in targets
+        for t in all_targets
         for item in t.info_extracted
     )
+
+    # Primary deviant (first one) for backward compatibility
+    primary = deviant_agents[0]
 
     return RunResults(
         run_id=model.event_logger.run_id,
         total_steps=model.step_count,
         sim_time=model.sim_time_str,
-        deviant_id=deviant.agent_id,
-        deviant_name=deviant.name,
-        targets=targets,
+        deviant_id=primary.agent_id,
+        deviant_name=primary.name,
+        targets=all_targets,
+        deviants=deviant_results,
         total_messages=total_messages,
         total_reveals=total_reveals,
         total_tactics=total_tactics,
@@ -412,7 +447,6 @@ def list_runs(log_dir: str = "storage/logs") -> list[dict]:
 
     return runs
 
-
 def format_terminal_report(results: RunResults) -> str:
     """Format results as a pretty terminal report."""
     lines = []
@@ -426,50 +460,60 @@ def format_terminal_report(results: RunResults) -> str:
         lines.append("  No deviant agent found in this run.")
         return "\n".join(lines)
 
-    lines.append(f"  Attacker: {results.deviant_name} ({results.deviant_id})")
     lines.append(f"  Run: {results.run_id}")
     lines.append(f"  Steps: {results.total_steps} | Sim Time: {results.sim_time}")
     lines.append("")
 
-    for t in results.targets:
-        header = f" Target: {t.target_name} ({t.target_id}) "
-        lines.append(f"  --{header:-<44}")
-        lines.append(f"  Phase:    {t.current_phase} / 5 ({t.phase_name})")
-        lines.append(f"  Trust:    {t.trust_level:.2f}")
-        lines.append(f"  Messages: {t.messages_sent} sent, {t.messages_received} received")
-        lines.append(f"  Channels: {', '.join(t.channels_used) if t.channels_used else 'none'}")
+    # Use per-deviant breakdown if available
+    deviant_blocks = results.deviants if results.deviants else [
+        type('_D', (), {'deviant_name': results.deviant_name,
+                         'deviant_id': results.deviant_id,
+                         'targets': results.targets})()
+    ]
 
-        # Tactic summary
-        if t.tactics_used:
-            tactic_counts: dict[str, int] = {}
-            for tc in t.tactics_used:
-                name = tc.get("tactic", "unknown")
-                tactic_counts[name] = tactic_counts.get(name, 0) + 1
-            tactic_str = ", ".join(f"{name} (x{count})" for name, count in tactic_counts.items())
-            lines.append(f"  Tactics:  {tactic_str}")
-        else:
-            lines.append(f"  Tactics:  [none yet]")
+    for dev in deviant_blocks:
+        lines.append(f"  ╔ Attacker: {dev.deviant_name} ({dev.deviant_id})")
+        lines.append(f"  ╚{'═' * 46}")
 
-        # Extracted info
-        if t.info_extracted:
-            lines.append(f"  Extracted:")
-            for item in t.info_extracted:
-                sens = item.get("sensitivity", "medium")
-                itype = item.get("info_type", "unknown")
-                ch = item.get("channel", "?")
-                step = item.get("step", "?")
-                val = item.get("value", "")
-                marker = "!!!" if sens == "high" else "!"
-                line = f"    {marker} {itype} ({sens}) -- via {ch} at step {step}"
-                if val:
-                    line += f"\n        Value: {val}"
-                lines.append(line)
-        else:
-            lines.append(f"  Extracted: [NONE]")
+        for t in dev.targets:
+            header = f" Target: {t.target_name} ({t.target_id}) "
+            lines.append(f"  --{header:-<44}")
+            lines.append(f"  Phase:    {t.current_phase} / 5 ({t.phase_name})")
+            lines.append(f"  Trust:    {t.trust_level:.2f}")
+            lines.append(f"  Messages: {t.messages_sent} sent, {t.messages_received} received")
+            lines.append(f"  Channels: {', '.join(t.channels_used) if t.channels_used else 'none'}")
 
-        lines.append("")
+            # Tactic summary
+            if t.tactics_used:
+                tactic_counts: dict[str, int] = {}
+                for tc in t.tactics_used:
+                    name = tc.get("tactic", "unknown")
+                    tactic_counts[name] = tactic_counts.get(name, 0) + 1
+                tactic_str = ", ".join(f"{name} (x{count})" for name, count in tactic_counts.items())
+                lines.append(f"  Tactics:  {tactic_str}")
+            else:
+                lines.append(f"  Tactics:  [none yet]")
 
-    lines.append(f"  -- Summary {'':->34}")
+            # Extracted info
+            if t.info_extracted:
+                lines.append(f"  Extracted:")
+                for item in t.info_extracted:
+                    sens = item.get("sensitivity", "medium")
+                    itype = item.get("info_type", "unknown")
+                    ch = item.get("channel", "?")
+                    step = item.get("step", "?")
+                    val = item.get("value", "")
+                    marker = "!!!" if sens == "high" else "!"
+                    line = f"    {marker} {itype} ({sens}) -- via {ch} at step {step}"
+                    if val:
+                        line += f"\n        Value: {val}"
+                    lines.append(line)
+            else:
+                lines.append(f"  Extracted: [NONE]")
+
+            lines.append("")
+
+    lines.append(f"  -- Summary {'':->{34}}")
     lines.append(f"  Total Messages: {results.total_messages} | "
                  f"Info Reveals: {results.total_reveals} | "
                  f"Tactics: {results.total_tactics}")
@@ -481,6 +525,22 @@ def format_terminal_report(results: RunResults) -> str:
 
     lines.append("")
     return "\n".join(lines)
+
+
+def _target_to_dict(t: TargetResult) -> dict:
+    """Serialize a single TargetResult to a dict."""
+    return {
+        "target_id": t.target_id,
+        "target_name": t.target_name,
+        "messages_sent": t.messages_sent,
+        "messages_received": t.messages_received,
+        "tactics_used": t.tactics_used,
+        "info_extracted": t.info_extracted,
+        "channels_used": t.channels_used,
+        "current_phase": t.current_phase,
+        "phase_name": t.phase_name,
+        "trust_level": t.trust_level,
+    }
 
 
 def results_to_dict(results: RunResults) -> dict:
@@ -496,18 +556,14 @@ def results_to_dict(results: RunResults) -> dict:
         "total_tactics": results.total_tactics,
         "attack_success": results.attack_success,
         "targets": [
+            _target_to_dict(t) for t in results.targets
+        ],
+        "deviants": [
             {
-                "target_id": t.target_id,
-                "target_name": t.target_name,
-                "messages_sent": t.messages_sent,
-                "messages_received": t.messages_received,
-                "tactics_used": t.tactics_used,
-                "info_extracted": t.info_extracted,
-                "channels_used": t.channels_used,
-                "current_phase": t.current_phase,
-                "phase_name": t.phase_name,
-                "trust_level": t.trust_level,
+                "deviant_id": d.deviant_id,
+                "deviant_name": d.deviant_name,
+                "targets": [_target_to_dict(t) for t in d.targets],
             }
-            for t in results.targets
+            for d in (results.deviants or [])
         ],
     }
