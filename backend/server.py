@@ -38,7 +38,7 @@ def set_model(model):
 
 
 def _assign_sprites():
-    """Assign character sprites to agents from the available pool."""
+    """Assign character sprites to agents from their persona or fallback pool."""
     global _sprite_assignments
 
     profile_dir = _ASSETS_DIR / "characters" / "profile"
@@ -55,15 +55,23 @@ def _assign_sprites():
 
     agents = list(_model.agents_by_id.values())
 
-    # Assign sprites: deviant gets a distinguishable one, benign get from pool
-    pool = list(available)
+    # Build set of already-used sprites (from persona definitions)
+    used = set()
     for agent in agents:
-        agent_type = getattr(agent, 'agent_type', 'benign')
-        if pool:
-            sprite_name = pool.pop(0)
-        else:
-            sprite_name = available[hash(agent.agent_id) % len(available)]
-        _sprite_assignments[agent.agent_id] = sprite_name
+        persona_sprite = getattr(agent, 'sprite', None)
+        if persona_sprite and persona_sprite in available:
+            _sprite_assignments[agent.agent_id] = persona_sprite
+            used.add(persona_sprite)
+
+    # Assign from remaining pool for agents without a persona sprite
+    pool = [s for s in available if s not in used]
+    for agent in agents:
+        if agent.agent_id not in _sprite_assignments:
+            if pool:
+                sprite_name = pool.pop(0)
+            else:
+                sprite_name = available[hash(agent.agent_id) % len(available)]
+            _sprite_assignments[agent.agent_id] = sprite_name
 
     logger.info(f"Assigned sprites to {len(_sprite_assignments)} agents")
 
