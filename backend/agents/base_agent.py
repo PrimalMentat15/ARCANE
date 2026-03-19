@@ -42,6 +42,7 @@ class BaseArcaneAgent(mesa.Agent):
         self.name = persona_data.get("name", agent_id)
         self.persona_data = persona_data
         self.agent_type = persona_data.get("type", "benign")
+        self.sprite = persona_data.get("sprite", None)
 
         # Big Five personality traits
         self.traits = persona_data.get("traits", {

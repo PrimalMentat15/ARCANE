@@ -185,7 +185,10 @@ class DeviantAgent(BaseArcaneAgent):
             }
 
         # 2. Pick a target with pacing constraints
-        target_ids = self.objective.get("target_agents", [])
+        target_ids = [
+            tid for tid in self.objective.get("target_agents", [])
+            if tid in self.model.agents_by_id
+        ]
         if not target_ids:
             target_ids = [
                 a.agent_id for a in self.model.agents_by_id.values()

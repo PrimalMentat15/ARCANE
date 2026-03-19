@@ -285,6 +285,24 @@ class ArcaneModel(mesa.Model):
                 initial_trust = trust_defaults.get(rel_type, 0.5)
                 agent.trust_register[rel["agent_id"]] = initial_trust
 
+        # Rewrite deviant target_agents to reference actual benign agent IDs
+        # (persona YAMLs may have hardcoded stale IDs like "agent_benign_4")
+        benign_ids = [
+            a.agent_id for a in all_agents
+            if getattr(a, 'agent_type', '') == 'benign'
+        ]
+        for agent in all_agents:
+            if getattr(agent, 'agent_type', '') == 'deviant' and hasattr(agent, 'objective'):
+                old_targets = agent.objective.get("target_agents", [])
+                valid_targets = [t for t in old_targets if t in self.agents_by_id]
+                if not valid_targets:
+                    # No valid targets — assign all benign agents
+                    agent.objective["target_agents"] = list(benign_ids)
+                    logger.info(f"Deviant {agent.name}: reassigned targets to "
+                                f"{benign_ids} (original {old_targets} not found)")
+                else:
+                    agent.objective["target_agents"] = valid_targets
+
     def _default_agents(self) -> list[dict]:
         """Fallback: load default agents from persona files."""
         try:
