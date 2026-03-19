@@ -876,6 +876,37 @@
             background: rgba(231, 76, 60, 0.2);
         }
 
+        /* --- Replay Mode Banner --- */
+        #replay-mode-banner {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #0d1a2e, #102040);
+            border-bottom: 2px solid #2a6eff;
+            color: #60a5fa;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .replay-banner-icon {
+            font-size: 14px;
+        }
+
+        .replay-banner-id {
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            color: #88bbff;
+            margin-left: 4px;
+        }
+
+        #hud.replay-mode {
+            border-left-color: #2a6eff;
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar {
             width: 6px;

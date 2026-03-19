@@ -145,6 +145,11 @@ const ArcaneAPI = (() => {
         if (_pollInterval) clearInterval(_pollInterval);
 
         _pollInterval = setInterval(async () => {
+            // Skip live updates while in replay mode
+            if (window.ArcaneUI && window.ArcaneUI.isReplayActive && window.ArcaneUI.isReplayActive()) {
+                return;
+            }
+
             const state = await fetchState();
             if (state && state.step !== _lastStep) {
                 _lastStep = state.step;

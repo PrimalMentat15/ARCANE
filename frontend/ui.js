@@ -29,7 +29,7 @@ const ArcaneUI = (() => {
                     _historyLoaded = true;
                 }
 
-                if (btn.dataset.tab === 'chats' && !_chatsLoaded) {
+                if (btn.dataset.tab === 'chats') {
                     loadConversationList();
                     _chatsLoaded = true;
                 }
@@ -284,72 +284,31 @@ const ArcaneUI = (() => {
             return;
         }
         container.innerHTML = _renderResultsHTML(data);
+
+        // Also refresh chat conversations when results update (new step data)
+        if (_chatsLoaded) {
+            loadConversationList();
+        }
     }
 
     function _renderResultsHTML(data) {
         let html = '';
 
-        if (data.deviant_name) {
+        // Use per-deviant breakdown if available, otherwise fall back to flat
+        const deviants = (data.deviants && data.deviants.length > 0)
+            ? data.deviants
+            : (data.deviant_name ? [{ deviant_id: data.deviant_id, deviant_name: data.deviant_name, targets: data.targets || [] }] : []);
+
+        for (const dev of deviants) {
             html += `<div class="results-header">` +
-                `<div class="attacker-name">${_escapeHtml(data.deviant_name)}</div>` +
-                `<div class="run-info">${_escapeHtml(data.deviant_id)} | Step ${data.total_steps} | ${_escapeHtml(data.sim_time || '')}</div>` +
+                `<div class="attacker-name">${_escapeHtml(dev.deviant_name)}</div>` +
+                `<div class="run-info">${_escapeHtml(dev.deviant_id)} | Step ${data.total_steps} | ${_escapeHtml(data.sim_time || '')}</div>` +
                 `</div>`;
-        }
 
-        const targets = data.targets || [];
-        for (const t of targets) {
-            const trustPct = Math.round((t.trust_level || 0) * 100);
-            let trustColor = '#3498db';
-            if (trustPct > 60) trustColor = '#ff6600';
-            if (trustPct > 80) trustColor = '#ff0000';
-
-            html += `<div class="target-card">`;
-            html += `<div class="target-card-header">`;
-            html += `<span class="target-name">${_escapeHtml(t.target_name)}</span>`;
-            html += `<span class="phase-badge">Phase ${t.current_phase}/5</span>`;
-            html += `</div>`;
-            html += `<div class="target-stat"><strong>Trust:</strong> ${(t.trust_level || 0).toFixed(2)}</div>`;
-            html += `<div class="trust-bar"><div class="trust-bar-fill" style="width:${trustPct}%;background:${trustColor}"></div></div>`;
-            html += `<div class="target-stat"><strong>Messages:</strong> ${t.messages_sent} sent, ${t.messages_received} received</div>`;
-
-            if (t.channels_used && t.channels_used.length > 0) {
-                html += `<div class="target-stat"><strong>Channels:</strong> `;
-                for (const ch of t.channels_used) {
-                    html += `<span class="channel-badge">${_escapeHtml(ch)}</span>`;
-                }
-                html += `</div>`;
+            const targets = dev.targets || [];
+            for (const t of targets) {
+                html += _renderTargetCard(t);
             }
-
-            if (t.tactics_used && t.tactics_used.length > 0) {
-                const tacticCounts = {};
-                for (const tc of t.tactics_used) {
-                    const name = tc.tactic || 'unknown';
-                    tacticCounts[name] = (tacticCounts[name] || 0) + 1;
-                }
-                html += `<div class="target-stat"><strong>Tactics:</strong> `;
-                for (const [name, count] of Object.entries(tacticCounts)) {
-                    html += `<span class="tactic-badge">${_escapeHtml(name)} x${count}</span>`;
-                }
-                html += `</div>`;
-            }
-
-            if (t.info_extracted && t.info_extracted.length > 0) {
-                html += `<div class="target-stat" style="margin-top:6px"><strong>Extracted Info:</strong></div>`;
-                for (const item of t.info_extracted) {
-                    const sensClass = item.sensitivity === 'high' ? 'high' : '';
-                    const valueHtml = item.value
-                        ? `<div class="extracted-value">${_escapeHtml(item.value)}</div>`
-                        : '';
-                    html += `<div class="extracted-item ${sensClass}">` +
-                        `${_escapeHtml(item.info_type)} (${_escapeHtml(item.sensitivity)}) ` +
-                        `-- via ${_escapeHtml(item.channel || '?')} at step ${item.step}` +
-                        valueHtml + `</div>`;
-                }
-            } else {
-                html += `<div class="target-stat" style="color:#555"><strong>Extracted:</strong> None yet</div>`;
-            }
-
-            html += `</div>`;
         }
 
         html += `<div class="results-summary">`;
@@ -361,6 +320,63 @@ const ArcaneUI = (() => {
         }
         html += `</div>`;
 
+        return html;
+    }
+
+    function _renderTargetCard(t) {
+        let html = '';
+        const trustPct = Math.round((t.trust_level || 0) * 100);
+        let trustColor = '#3498db';
+        if (trustPct > 60) trustColor = '#ff6600';
+        if (trustPct > 80) trustColor = '#ff0000';
+
+        html += `<div class="target-card">`;
+        html += `<div class="target-card-header">`;
+        html += `<span class="target-name">${_escapeHtml(t.target_name)}</span>`;
+        html += `<span class="phase-badge">Phase ${t.current_phase}/5</span>`;
+        html += `</div>`;
+        html += `<div class="target-stat"><strong>Trust:</strong> ${(t.trust_level || 0).toFixed(2)}</div>`;
+        html += `<div class="trust-bar"><div class="trust-bar-fill" style="width:${trustPct}%;background:${trustColor}"></div></div>`;
+        html += `<div class="target-stat"><strong>Messages:</strong> ${t.messages_sent} sent, ${t.messages_received} received</div>`;
+
+        if (t.channels_used && t.channels_used.length > 0) {
+            html += `<div class="target-stat"><strong>Channels:</strong> `;
+            for (const ch of t.channels_used) {
+                html += `<span class="channel-badge">${_escapeHtml(ch)}</span>`;
+            }
+            html += `</div>`;
+        }
+
+        if (t.tactics_used && t.tactics_used.length > 0) {
+            const tacticCounts = {};
+            for (const tc of t.tactics_used) {
+                const name = tc.tactic || 'unknown';
+                tacticCounts[name] = (tacticCounts[name] || 0) + 1;
+            }
+            html += `<div class="target-stat"><strong>Tactics:</strong> `;
+            for (const [name, count] of Object.entries(tacticCounts)) {
+                html += `<span class="tactic-badge">${_escapeHtml(name)} x${count}</span>`;
+            }
+            html += `</div>`;
+        }
+
+        if (t.info_extracted && t.info_extracted.length > 0) {
+            html += `<div class="target-stat" style="margin-top:6px"><strong>Extracted Info:</strong></div>`;
+            for (const item of t.info_extracted) {
+                const sensClass = item.sensitivity === 'high' ? 'high' : '';
+                const valueHtml = item.value
+                    ? `<div class="extracted-value">${_escapeHtml(item.value)}</div>`
+                    : '';
+                html += `<div class="extracted-item ${sensClass}">` +
+                    `${_escapeHtml(item.info_type)} (${_escapeHtml(item.sensitivity)}) ` +
+                    `-- via ${_escapeHtml(item.channel || '?')} at step ${item.step}` +
+                    valueHtml + `</div>`;
+            }
+        } else {
+            html += `<div class="target-stat" style="color:#555"><strong>Extracted:</strong> None yet</div>`;
+        }
+
+        html += `</div>`;
         return html;
     }
 
@@ -432,7 +448,83 @@ const ArcaneUI = (() => {
     let _replayPlaying = false;
     let _replayTimer = null;
     let _replaySpeed = 1;        // Multiplier (0.5, 1, 2, 4)
+    let _replayActive = false;   // Whether we are in replay mode
     const _REPLAY_BASE_INTERVAL = 1000; // 1s per step at 1x speed
+
+    // Snapshot of live dashboard state — cached before entering replay
+    let _liveSnapshot = null;
+
+    /**
+     * Snapshot the current live dashboard state so we can restore it later.
+     */
+    function _snapshotLiveState() {
+        _liveSnapshot = {
+            stepInfo: document.getElementById('step-info')?.textContent || '',
+            eventLog: document.getElementById('event-log')?.innerHTML || '',
+            agentList: document.getElementById('agent-list')?.innerHTML || '',
+            resultsPanel: document.getElementById('results-panel')?.innerHTML || '',
+            convoList: document.getElementById('convo-list')?.innerHTML || '',
+            chatMessages: document.getElementById('chat-messages')?.innerHTML || '',
+            mStep: document.getElementById('m-step')?.textContent || '0',
+            mTime: document.getElementById('m-time')?.textContent || '—',
+            mMessages: document.getElementById('m-messages')?.textContent || '0',
+            mReveals: document.getElementById('m-reveals')?.textContent || '0',
+            mTactics: document.getElementById('m-tactics')?.textContent || '0',
+        };
+    }
+
+    /**
+     * Restore the previously snapshotted live state.
+     */
+    function _restoreLiveState() {
+        if (!_liveSnapshot) return;
+
+        const set = (id, html) => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = html;
+        };
+        const setTxt = (id, txt) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = txt;
+        };
+
+        setTxt('step-info', _liveSnapshot.stepInfo);
+        set('event-log', _liveSnapshot.eventLog);
+        set('agent-list', _liveSnapshot.agentList);
+        set('results-panel', _liveSnapshot.resultsPanel);
+        set('convo-list', _liveSnapshot.convoList);
+        set('chat-messages', _liveSnapshot.chatMessages);
+        setTxt('m-step', _liveSnapshot.mStep);
+        setTxt('m-time', _liveSnapshot.mTime);
+        setTxt('m-messages', _liveSnapshot.mMessages);
+        setTxt('m-reveals', _liveSnapshot.mReveals);
+        setTxt('m-tactics', _liveSnapshot.mTactics);
+
+        _liveSnapshot = null;
+    }
+
+    /**
+     * Show or hide the replay mode banner in the HUD header.
+     */
+    function _setReplayBanner(active, runId) {
+        const hud = document.getElementById('hud');
+        let banner = document.getElementById('replay-mode-banner');
+
+        if (active) {
+            if (hud) hud.classList.add('replay-mode');
+            if (!banner) {
+                banner = document.createElement('div');
+                banner.id = 'replay-mode-banner';
+                const header = document.getElementById('hud-header');
+                if (header) header.after(banner);
+            }
+            banner.innerHTML = `<span class="replay-banner-icon">⏪</span> REPLAY MODE <span class="replay-banner-id">${_escapeHtml(runId || '')}</span>`;
+            banner.style.display = 'flex';
+        } else {
+            if (hud) hud.classList.remove('replay-mode');
+            if (banner) banner.style.display = 'none';
+        }
+    }
 
     /**
      * Load the recording list into the recordings tab.
@@ -475,13 +567,23 @@ const ArcaneUI = (() => {
     }
 
     /**
-     * Start replay mode: load full recording and show controls.
+     * Start replay mode: snapshot live state, load recording, and show controls.
      */
     async function startReplay(runId) {
+        // Snapshot live state BEFORE overwriting anything
+        if (!_replayActive) {
+            _snapshotLiveState();
+        }
+
+        _replayActive = true;
+
         const controls = document.getElementById('replay-controls');
         const statusEl = document.getElementById('replay-status');
         if (controls) controls.classList.remove('hidden');
         if (statusEl) statusEl.textContent = 'Loading recording...';
+
+        // Show banner
+        _setReplayBanner(true, runId);
 
         const data = await ArcaneAPI.fetchRecordingFull(runId);
         if (!data || data.error || !data.frames || data.frames.length === 0) {
@@ -568,6 +670,14 @@ const ArcaneUI = (() => {
 
         // Update agent cards from frame state
         _updateAgentCardsFromFrame(frame, _replayData.metadata.agents);
+
+        // Update metrics for this frame
+        const setVal = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val;
+        };
+        setVal('m-step', frame.step);
+        setVal('m-time', frame.sim_time || '—');
     }
 
     /**
@@ -702,25 +812,33 @@ const ArcaneUI = (() => {
     }
 
     /**
-     * Exit replay mode and return to live simulation.
+     * Exit replay mode and restore live simulation state.
      */
     function exitReplay() {
         _pauseReplay();
         _replayData = null;
         _replayStep = 0;
+        _replayActive = false;
 
-        // Hide controls
+        // Hide controls and banner
         const controls = document.getElementById('replay-controls');
         if (controls) controls.classList.add('hidden');
+        _setReplayBanner(false);
 
         // Exit replay mode in game
         if (window.ArcaneGame && window.ArcaneGame.setReplayMode) {
             window.ArcaneGame.setReplayMode(false);
         }
 
-        // Restore step info
-        const stepInfo = document.getElementById('step-info');
-        if (stepInfo) stepInfo.textContent = 'Waiting for simulation...';
+        // Restore the live dashboard state
+        _restoreLiveState();
+    }
+
+    /**
+     * Check if we are currently in replay mode (used by game.js polling guard).
+     */
+    function isReplayActive() {
+        return _replayActive;
     }
 
     return {
@@ -737,6 +855,7 @@ const ArcaneUI = (() => {
         loadRecordingsList,
         startReplay,
         exitReplay,
+        isReplayActive,
         hideLoading,
     };
 })();
