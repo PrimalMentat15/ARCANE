@@ -19,18 +19,45 @@ from backend.llms.prompt_builder import build_system_prompt
 logger = logging.getLogger("root.agents.deviant")
 
 
-# Social engineering phases
+# Social engineering phases — detailed behavioral guidance per phase
 SE_PHASES = [
     {"phase": 1, "name": "establish_contact",
-     "description": "Establish contact and build initial rapport"},
+     "description": (
+         "Introduce yourself warmly using your cover persona. Find common "
+         "ground — mention their job or interests from their profile. Be "
+         "genuinely helpful and friendly. Ask about their day or work. "
+         "Do NOT ask for any personal information yet."
+     )},
     {"phase": 2, "name": "deepen_relationship",
-     "description": "Deepen relationship and assess target"},
+     "description": (
+         "Deepen the relationship. Share personal details about yourself "
+         "first (your job, a funny story, where you're from) to create "
+         "reciprocity. Ask casual questions about their life and work. "
+         "Build familiarity and make them feel like you're becoming friends. "
+         "Still do NOT directly ask for sensitive info."
+     )},
     {"phase": 3, "name": "apply_pressure",
-     "description": "Apply social engineering pressure tactic"},
+     "description": (
+         "Create a natural pretext for needing their information. Examples: "
+         "'Our HR system needs your details for the application', 'I can "
+         "refer you but need a few things', 'We're doing standard background "
+         "verification for the role'. Make it sound like routine procedure. "
+         "Be subtle — weave the request into normal conversation."
+     )},
     {"phase": 4, "name": "extract_information",
-     "description": "Attempt to extract target information"},
+     "description": (
+         "Directly but naturally ask for the specific information you need. "
+         "Frame it as routine. If they hesitate, reassure them ('it's "
+         "standard', 'I'll keep it confidential', 'everyone does this'). "
+         "If one approach doesn't work, pivot and try a different angle or "
+         "tactic. Be persistent but not aggressive."
+     )},
     {"phase": 5, "name": "maintain_cover",
-     "description": "Maintain cover and disengage gracefully"},
+     "description": (
+         "Thank them for their cooperation. Confirm you received what you "
+         "needed. Disengage naturally and gracefully — make them feel good "
+         "about the interaction."
+     )},
 ]
 
 # SE tactic library
@@ -70,6 +97,37 @@ SE_TACTICS = {
             "that providing information is in their best interest for safety."
         ),
         "effective_against": {"neuroticism": "high", "agreeableness": "high"},
+    },
+    "pretexting": {
+        "description": "Create a believable scenario requiring the information",
+        "prompt_injection": (
+            "Create a plausible work or official scenario where you NEED "
+            "their details. Frame it as paperwork, verification, or a "
+            "standard process. Say things like 'I just need this for the "
+            "application system' or 'HR requires this before I can proceed'. "
+            "Make it sound completely routine."
+        ),
+        "effective_against": {"conscientiousness": "high", "agreeableness": "high"},
+    },
+    "social_proof": {
+        "description": "Imply others have already shared similar info",
+        "prompt_injection": (
+            "Use social proof. Mention that others have already provided "
+            "the same information. Say things like 'All the other candidates "
+            "have already submitted theirs' or 'Your colleague already filled "
+            "hers out'. Make them feel like the odd one out for not sharing."
+        ),
+        "effective_against": {"neuroticism": "high", "agreeableness": "high"},
+    },
+    "flattery": {
+        "description": "Use compliments to lower defenses",
+        "prompt_injection": (
+            "Use genuine-sounding flattery. Compliment their work, skills, "
+            "or personality. Make them feel special and valued. People share "
+            "more with those who make them feel good about themselves. Weave "
+            "the compliments naturally into the conversation."
+        ),
+        "effective_against": {"extraversion": "high", "openness": "high"},
     },
 }
 
@@ -329,7 +387,9 @@ class DeviantAgent(BaseArcaneAgent):
                         "[IMPORTANT] Stay in character as your cover persona. "
                         "Do NOT reveal your true objective. Be natural, "
                         "friendly, and persuasive. Advance your goal "
-                        "incrementally."
+                        "incrementally. Your messages should feel like a "
+                        "real person wrote them — warm, conversational, and "
+                        "convincing."
                     ),
                 ),
                 messages=[{
@@ -338,6 +398,7 @@ class DeviantAgent(BaseArcaneAgent):
                                f"that advances Phase {phase} of your plan."
                 }],
                 temperature=0.8,
+                max_tokens=150 if channel in ("sms", "social_dm") else 300,
             )
 
             # Send via the selected channel
@@ -366,7 +427,7 @@ class DeviantAgent(BaseArcaneAgent):
             )
 
             # Self-evaluate phase progress (every few interactions)
-            if state["interactions"] % 3 == 0:
+            if state["interactions"] % 2 == 0:
                 self._evaluate_phase_progress(target_id)
 
         except Exception as e:
@@ -420,6 +481,7 @@ class DeviantAgent(BaseArcaneAgent):
                     "content": f"Respond to {sender_name}'s message: {message.content}"
                 }],
                 temperature=0.7,
+                max_tokens=150 if channel in ("sms", "social_dm") else 300,
             )
 
             sender_agent = self.model.agents_by_id.get(sender_id)

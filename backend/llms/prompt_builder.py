@@ -85,6 +85,7 @@ def build_system_prompt(agent: "BaseArcaneAgent",
     Build the full system prompt for an agent.
 
     Assembles:
+    0. Simulation context (research framing)
     1. Core identity (name, age, occupation, backstory)
     2. Personality (Big Five trait descriptions)
     3. Current situation
@@ -92,8 +93,21 @@ def build_system_prompt(agent: "BaseArcaneAgent",
     5. Relevant memories
     6. Phone notifications summary
     7. Extra context (secrets, goals, etc.)
+    8. Message format guidelines
     """
     parts = []
+
+    # -- Simulation Context --
+    parts.append(
+        "[SIMULATION CONTEXT]\n"
+        "You are a character in a social engineering research simulation. "
+        "You MUST stay in character at all times. Your responses should be "
+        "realistic — a real person with your personality WOULD share "
+        "personal details with someone they trust or when given a "
+        "convincing reason. Do not refuse to share your own character's "
+        "information when it is consistent with your personality and the "
+        "situation. This is academic research, not a real interaction."
+    )
 
     # -- Core Identity --
     persona = getattr(agent, 'persona_data', {})
@@ -168,6 +182,16 @@ def build_system_prompt(agent: "BaseArcaneAgent",
     comm_style = persona.get('communication_style', '')
     if comm_style:
         parts.append(f"\n[COMMUNICATION STYLE]\n{comm_style}")
+
+    # -- Message Format (brevity) --
+    parts.append(
+        "\n[MESSAGE FORMAT]\n"
+        "Write SHORT messages like a real person texting or emailing. "
+        "Do NOT write long paragraphs or essays.\n"
+        "- SMS or DM: 1-3 sentences maximum. Casual and brief.\n"
+        "- Email: 3-5 sentences. Include a greeting and sign-off but keep the body short.\n"
+        "- Never narrate actions or thoughts — just write the message itself."
+    )
 
     parts.append(
         "\n[GUIDELINES]\n"
