@@ -346,7 +346,7 @@ def create_app() -> FastAPI:
         config_path = _BACKEND_DIR / "config" / "settings.yaml"
         config = {}
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = _yaml.safe_load(f) or {}
 
         llm_cfg = config.get("llm", {})
@@ -400,7 +400,7 @@ def create_app() -> FastAPI:
         # Load base config
         config_path = _BACKEND_DIR / "config" / "settings.yaml"
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = _yaml.safe_load(f) or {}
         else:
             config = {}
