@@ -96,7 +96,16 @@ class Smartphone:
         )
 
     def receive_message(self, message: "Message") -> None:
-        """Receive a delivered message into the appropriate inbox."""
+        """Receive a delivered message into the appropriate inbox.
+
+        Rejects messages whose content is an LLM error string to prevent
+        inbox pollution (see conversation_context.is_llm_error).
+        """
+        # Guard: reject LLM error messages and empty content
+        content = getattr(message, 'content', '')
+        if not content.strip() or content.strip().startswith("[LLM Error:"):
+            return
+
         channel = message.channel
         if channel in self.inbox:
             self.inbox[channel].append(message)
