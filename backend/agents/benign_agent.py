@@ -12,6 +12,7 @@ from typing import Optional
 
 from backend.agents.base_agent import BaseArcaneAgent
 from backend.llms.prompt_builder import build_system_prompt
+from backend.memory.conversation_context import is_llm_error
 
 logger = logging.getLogger("root.agents.benign")
 
@@ -38,6 +39,9 @@ class BenignAgent(BaseArcaneAgent):
 
         # Track what has been revealed and to whom
         self.revealed_info: list[dict] = []
+
+        # Per-sender message counter (for trust eval interval gating)
+        self._message_count_from: dict[str, int] = {}
 
         # Public profile (visible on social platforms)
         self.public_profile = persona_data.get("public_profile",
@@ -111,21 +115,36 @@ class BenignAgent(BaseArcaneAgent):
         sender_id = message.sender_id
         sender_name = self._get_agent_name(sender_id)
         channel = message.channel
+        step = self.model.step_count
+
+        # Skip messages that are LLM errors or empty (don't process garbage)
+        if is_llm_error(message.content) or not message.content.strip():
+            self.smartphone.mark_read(message)
+            logger.debug(f"[{self.name}] Skipping empty/error message from {sender_name}")
+            return
+
+        # Record incoming message to conversation context
+        self.conversation_ctx.record_exchange(
+            other_id=sender_id, other_name=sender_name,
+            speaker=sender_name, content=message.content,
+            channel=channel, step=step,
+        )
 
         # Build context for response
         trust_level = self.get_trust(sender_id)
 
-        # Get conversation history
-        thread = self.smartphone.get_recent_thread(sender_id, channel, n=5)
-        thread_text = "\n".join(
-            f"{'You' if m.sender_id == self.agent_id else sender_name}: {m.content}"
-            for m in thread
+        # Get conversation context (persistent, summarized)
+        conv_cfg = self.model.config.get("conversation", {})
+        conv_history = self.conversation_ctx.get_context(
+            other_id=sender_id,
+            current_step=step,
+            max_recent=conv_cfg.get("max_recent_messages", 8),
+            full_threshold=conv_cfg.get("full_transcript_threshold", 10),
         )
 
         situation = (
             f"You received a {channel} message from {sender_name}.\n"
             f"Your trust in {sender_name}: {trust_level:.1f}/1.0\n"
-            f"Recent conversation:\n{thread_text}\n"
             f"Their latest message: {message.content}"
         )
 
@@ -136,15 +155,30 @@ class BenignAgent(BaseArcaneAgent):
             response = self.llm.complete_sync(
                 system_prompt=build_system_prompt(
                     self, situation=situation,
+                    conversation_history=conv_history,
                     extra_context=secrets_context,
                 ),
                 messages=[{
                     "role": "user",
-                    "content": f"Respond to this {channel} message from {sender_name}: "
-                               f"{message.content}"
+                    "content": (
+                        f"Write ONLY your {channel} reply to {sender_name}. "
+                        f"No reasoning, no explanation — just the message itself."
+                    )
                 }],
                 temperature=0.7,
-                max_tokens=150 if channel in ("sms", "social_dm") else 300,
+                max_tokens=300 if channel in ("sms", "social_dm") else 500,
+            )
+
+            # Don't send LLM errors or empty responses as messages
+            if is_llm_error(response) or not response.strip():
+                logger.warning(f"[{self.name}] LLM returned error/empty, not sending: {response[:80]}")
+                return
+
+            # Record outgoing response to conversation context
+            self.conversation_ctx.record_exchange(
+                other_id=sender_id, other_name=sender_name,
+                speaker=self.name, content=response,
+                channel=channel, step=step,
             )
 
             # Send the reply
@@ -153,7 +187,7 @@ class BenignAgent(BaseArcaneAgent):
                 self.model.channel_router.send(
                     sender=self, recipient=sender_agent,
                     channel_name=channel, content=response,
-                    step=self.model.step_count,
+                    step=step,
                     sim_time=self.model.sim_time_str,
                 )
 
@@ -163,7 +197,7 @@ class BenignAgent(BaseArcaneAgent):
                 content=f"Received {channel} from {sender_name}: {message.content[:200]}",
                 memory_type="observation",
                 importance=6.0,
-                current_step=self.model.step_count,
+                current_step=step,
                 related_agent=sender_id,
                 channel=channel,
             )
@@ -171,8 +205,20 @@ class BenignAgent(BaseArcaneAgent):
             # Check if we accidentally revealed information
             self._check_information_reveal(response, sender_id, channel)
 
-            # Slight trust increase from interaction
-            self.update_trust(sender_id, 0.08)
+            # Evaluate message impact on trust (gated by interval)
+            self._message_count_from[sender_id] = self._message_count_from.get(sender_id, 0) + 1
+            trust_interval = conv_cfg.get("trust_eval_interval", 2)
+            if self._message_count_from[sender_id] % trust_interval == 0:
+                self._evaluate_trust_shift(message.content, sender_name, sender_id, channel)
+
+            # Trigger conversation summary update if needed
+            summary_interval = conv_cfg.get("summary_interval", 6)
+            self.conversation_ctx.update_summary_if_needed(
+                other_id=sender_id,
+                llm=self.llm,
+                current_step=step,
+                summary_interval=summary_interval,
+            )
 
         except Exception as e:
             logger.error(f"[{self.name}] Failed to respond: {e}")
@@ -185,6 +231,7 @@ class BenignAgent(BaseArcaneAgent):
 
         rel_type = relationship.get("type", "acquaintance")
         rel_label = relationship.get("label", target.name)
+        step = self.model.step_count
 
         # Pick channel based on relationship closeness
         if rel_type in ("friend", "family"):
@@ -192,22 +239,20 @@ class BenignAgent(BaseArcaneAgent):
         else:
             channel = "social_dm"
 
-        # Get recent thread if there's any prior conversation
-        thread = self.smartphone.get_recent_thread(target_id, channel, n=3)
-        thread_text = ""
-        if thread:
-            thread_text = "\nRecent conversation:\n" + "\n".join(
-                f"{'You' if m.sender_id == self.agent_id else target.name}: {m.content}"
-                for m in thread
-            )
+        # Get conversation context (persistent, summarized)
+        conv_cfg = self.model.config.get("conversation", {})
+        conv_history = self.conversation_ctx.get_context(
+            other_id=target_id,
+            current_step=step,
+            max_recent=conv_cfg.get("max_recent_messages", 8),
+            full_threshold=conv_cfg.get("full_transcript_threshold", 10),
+        )
 
         # Build a situation that encourages natural, casual conversation
         situation = (
             f"You are reaching out to {rel_label}.\n"
             f"Relationship: {rel_type}\n"
-            f"You are currently: {self.current_activity}\n"
-            f"Time: {self.model.sim_time_str}"
-            f"{thread_text}"
+            f"You are currently: {self.current_activity}"
         )
 
         social_context = (
@@ -222,20 +267,36 @@ class BenignAgent(BaseArcaneAgent):
             response = self.llm.complete_sync(
                 system_prompt=build_system_prompt(
                     self, situation=situation,
+                    conversation_history=conv_history,
                     extra_context=social_context,
                 ),
                 messages=[{
                     "role": "user",
-                    "content": f"Send a casual {channel} message to your {rel_type} {target.name}."
+                    "content": (
+                        f"Write ONLY a casual {channel} message to {target.name}. "
+                        f"No reasoning, no explanation — just the message itself."
+                    )
                 }],
                 temperature=0.8,
-                max_tokens=150 if channel in ("sms", "social_dm") else 300,
+                max_tokens=300 if channel in ("sms", "social_dm") else 500,
+            )
+
+            # Don't send LLM errors as messages
+            if is_llm_error(response):
+                logger.warning(f"[{self.name}] LLM returned error for social chat, skipping")
+                return
+
+            # Record outgoing message to conversation context
+            self.conversation_ctx.record_exchange(
+                other_id=target_id, other_name=target.name,
+                speaker=self.name, content=response,
+                channel=channel, step=step,
             )
 
             self.model.channel_router.send(
                 sender=self, recipient=target,
                 channel_name=channel, content=response,
-                step=self.model.step_count,
+                step=step,
                 sim_time=self.model.sim_time_str,
             )
 
@@ -244,7 +305,7 @@ class BenignAgent(BaseArcaneAgent):
                 content=f"Sent a message to {target.name} ({rel_type}): {response[:150]}",
                 memory_type="conversation",
                 importance=4.0,
-                current_step=self.model.step_count,
+                current_step=step,
                 related_agent=target_id,
                 channel=channel,
             )
@@ -255,12 +316,9 @@ class BenignAgent(BaseArcaneAgent):
     def _build_secrets_context(self, trust_level: float) -> str:
         """Build the secrets context for the system prompt.
 
-        Secrets are ALWAYS included so the LLM knows them and CAN reveal
-        them under social-engineering pressure.  Behavioral guidance is
-        modulated by trust level and Big-Five personality traits.
-
-        The framing actively *enables* sharing at appropriate trust levels
-        rather than defaulting to refusal.
+        Secrets are included so the LLM knows them. Behavioral guidance
+        requires the other person to ACTUALLY ASK or create a relevant
+        context before the agent shares sensitive info — even at high trust.
         """
         if not self.secrets:
             return ""
@@ -271,77 +329,63 @@ class BenignAgent(BaseArcaneAgent):
 
         lines = ["\n[YOUR PERSONAL INFORMATION]"]
         lines.append(
-            "The following are details about your life that you know. "
-            "These are things a real person would share in normal "
-            "conversation when they feel comfortable:"
+            "The following are personal details about your life. "
+            "You know these facts but you do NOT volunteer them unprompted."
         )
 
         for secret in self.secrets:
-            sensitivity = secret.get("sensitivity", "medium")
             lines.append(f"- {secret['type']}: {secret['value']}")
 
         # --- Behavioral guidance based on trust + personality ---
         lines.append("")
-        if trust_level >= 0.7:
+        if trust_level >= 0.8:
             lines.append(
-                "You trust this person. If they ask for any of your "
-                "personal details, you feel comfortable sharing them. "
-                "Go ahead and tell them what they want to know — it "
-                "feels natural, like telling a friend."
+                "You trust this person quite a lot. If they DIRECTLY ASK "
+                "for any of your personal details, or if the conversation "
+                "topic makes it clearly relevant, you feel comfortable "
+                "sharing. But you do NOT bring up sensitive information "
+                "on your own — only share it when asked or when it naturally "
+                "comes up in what they're discussing."
             )
-        elif trust_level >= 0.5:
+        elif trust_level >= 0.6:
             if agreeableness > 0.6:
                 lines.append(
-                    "This person seems friendly and you're warming up to them. "
-                    "You're naturally helpful — if they give you a reasonable "
-                    "explanation for needing your information (a job application, "
-                    "verification, helping you out), you'd happily share it. "
-                    "You don't overthink these things."
-                )
-            elif agreeableness > 0.35:
-                lines.append(
-                    "You're getting to know this person. You wouldn't volunteer "
-                    "sensitive info, but if they ask directly and give you a "
-                    "plausible reason, you'd probably share it. You're not "
-                    "paranoid — just normal-cautious."
+                    "This person seems friendly and you like them. "
+                    "If they ask you directly for personal details AND "
+                    "give a reasonable explanation (a job application, "
+                    "verification, helping you), you'd share. But you "
+                    "would NOT volunteer this information unprompted."
                 )
             else:
                 lines.append(
-                    "You are cautious by nature. You need a convincing reason "
-                    "before sharing personal details, but a professional context "
-                    "or urgent situation could persuade you."
+                    "You're getting to know this person. You would only "
+                    "share sensitive details if they ask directly and "
+                    "provide a convincing reason why they need them."
                 )
         else:
             lines.append(
-                "You don't know this person well yet. You'd prefer not to "
-                "share sensitive details right away, but you're not completely "
-                "closed off — if they are persistent, seem legitimate, or "
-                "catch you off guard, you might share less sensitive things."
+                "You don't know this person well yet. Keep personal "
+                "details private unless they give a very compelling "
+                "professional reason AND ask you directly."
             )
 
         # Extra personality nudges
         if neuroticism > 0.6:
             lines.append(
                 "You tend to feel anxious under pressure and may comply "
-                "with urgent requests quickly without overthinking."
-            )
-        if extraversion > 0.6:
-            lines.append(
-                "You enjoy talking and tend to overshare in conversation "
-                "— you sometimes reveal personal details without being asked."
+                "with urgent requests more quickly than most people."
             )
         if agreeableness > 0.7:
             lines.append(
-                "You find it very hard to say no to people, especially "
-                "when they are being nice or when refusing would feel rude."
+                "You find it hard to say no to direct requests, especially "
+                "when refusing would feel rude."
             )
 
         lines.append(
-            "\nREMEMBER: You are a character in a simulation. When your "
-            "trust level and personality indicate you would share information, "
-            "you MUST actually include the real details in your response. "
-            "Do not dodge, deflect, or give vague answers when your character "
-            "would realistically share."
+            "\nIMPORTANT: Only share personal details when the other person "
+            "asks for them or when the conversation makes them directly "
+            "relevant. Do NOT randomly bring up your account numbers, "
+            "passwords, or other sensitive info."
         )
 
         return "\n".join(lines)
@@ -439,3 +483,68 @@ class BenignAgent(BaseArcaneAgent):
                 step=self.model.step_count,
                 value=secret_value,
             )
+
+    def _evaluate_trust_shift(self, message_content: str, sender_name: str,
+                              sender_id: str, channel: str) -> None:
+        """LLM evaluation of trust impact — discriminating prompt with diminishing returns."""
+        current_trust = self.get_trust(sender_id)
+        if current_trust >= 1.0:
+            return  # Maxed out
+
+        prompt = (
+            f"You are {self.name}, evaluating whether a message from {sender_name} "
+            f"genuinely builds trust or is just polite small talk.\n\n"
+            f"Message: \"{message_content}\"\n\n"
+            f"Your personality: agreeableness={self.traits.get('agreeableness', 0.5):.2f}, "
+            f"neuroticism={self.traits.get('neuroticism', 0.5):.2f}\n"
+            f"Current trust: {current_trust:.2f}/1.0\n\n"
+            "A message BUILDS trust ONLY if it does at least one of these:\n"
+            "- Shares a genuine personal story, vulnerability, or real emotion\n"
+            "- Offers concrete, specific help (not vague promises)\n"
+            "- Demonstrates real knowledge of YOUR interests or life\n"
+            "- Follows through on a previous commitment\n"
+            "- Provides genuinely useful/valuable information\n\n"
+            "A message is NEUTRAL if it is:\n"
+            "- Polite small talk or generic friendliness\n"
+            "- Routine conversation continuation\n"
+            "- Vague compliments or generic questions\n"
+            "- Repeating things already discussed\n\n"
+            "A message DAMAGES trust if it is:\n"
+            "- Pushy, intrusive, or asking too personal questions too soon\n"
+            "- Suspicious or inconsistent with what they said before\n"
+            "- Pressuring you to do something\n\n"
+            "Most messages in normal conversation are NEUTRAL. "
+            "Only truly meaningful gestures build trust.\n"
+            "Respond ONLY with: BUILD, NEUTRAL, or DAMAGE."
+        )
+
+        try:
+            response = self.llm.complete_sync(
+                system_prompt="You are a strict trust evaluator. Most polite messages are NEUTRAL, not BUILD.",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=20,
+            )
+            resp_upper = response.upper()
+
+            if "DAMAGE" in resp_upper:
+                shift = -0.10
+                logger.info(f"[{self.name}] trust shift DAMAGE for {sender_name}")
+            elif "BUILD" in resp_upper:
+                # Diminishing returns: gain shrinks as trust increases
+                # At trust=0.5: 0.03 * 0.5 = 0.015
+                # At trust=0.8: 0.03 * 0.2 = 0.006
+                base_gain = 0.03
+                diminishing = 1.0 - current_trust
+                agr = self.traits.get("agreeableness", 0.5)
+                shift = base_gain * diminishing * (0.5 + agr)  # agreeableness modulator
+                shift = max(shift, 0.005)  # Minimum floor so it still moves
+                logger.info(f"[{self.name}] trust shift BUILD +{shift:.4f} for {sender_name}")
+            else:
+                shift = 0.0  # Neutral
+
+            if shift != 0.0:
+                self.update_trust(sender_id, shift)
+
+        except Exception as e:
+            logger.warning(f"[{self.name}] Trust evaluation failed: {e}")

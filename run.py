@@ -48,7 +48,7 @@ def load_config() -> dict:
     """Load settings.yaml."""
     config_path = _project_root / "backend" / "config" / "settings.yaml"
     if config_path.exists():
-        with open(config_path) as f:
+        with open(config_path, encoding='utf-8') as f:
             return yaml.safe_load(f) or {}
     return {}
 
@@ -62,7 +62,7 @@ def load_scenario(path: str | None) -> dict:
         # Try relative to scenarios dir
         scenario_path = _project_root / "backend" / "scenarios" / path
     if scenario_path.exists():
-        with open(scenario_path) as f:
+        with open(scenario_path, encoding='utf-8') as f:
             return yaml.safe_load(f) or {}
     logger.warning(f"Scenario file not found: {path}")
     return {}
@@ -111,6 +111,7 @@ def print_help():
     print("    review <id> View results from a past run")
     print("    recordings  List available recordings")
     print("    save        Force-save current recording")
+    print("    report      Generate and save documentation report")
     print("    help        Show this help message")
     print("    quit        Exit cleanly")
     print()
@@ -319,6 +320,18 @@ def cmd_save_recording(model):
     print()
 
 
+def cmd_report(model):
+    """Generate and save a simulation report."""
+    from backend.research.report_generator import save_report
+    try:
+        print("  Generating documentation report...")
+        filepath = save_report(model)
+        print(f"  Report saved successfully to: {filepath}")
+    except Exception as e:
+        print(f"  Failed to save report: {e}")
+    print()
+
+
 def main():
     parser = argparse.ArgumentParser(description="ARCANE Simulation Runner")
     parser.add_argument("--scenario", type=str, default=None, help="Scenario YAML file")
@@ -463,6 +476,8 @@ def main():
             cmd_recordings(model)
         elif cmd == "save":
             cmd_save_recording(model)
+        elif cmd == "report":
+            cmd_report(model)
         elif cmd == "help":
             print_help()
         elif cmd in ("quit", "exit", "q"):
@@ -472,6 +487,16 @@ def main():
                 filepath = model.recorder.save()
                 if filepath:
                     print(f"  Recording saved: {filepath}")
+            
+            # Save documentation report
+            from backend.research.report_generator import save_report
+            try:
+                print("  Saving final simulation report...")
+                filepath = save_report(model)
+                print(f"  Report saved: {filepath}")
+            except Exception as e:
+                print(f"  Failed to save report: {e}")
+
             print("  Goodbye!")
             break
         else:
