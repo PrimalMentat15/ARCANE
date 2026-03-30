@@ -373,6 +373,26 @@ class ArcaneModel(mesa.Model):
         """No-op: agents stay at their home tile in the current scenario."""
         pass
 
+    def _resolve_llm_config(self, role_cfg: dict) -> tuple[str, str]:
+        """Resolve a role's LLM config to (provider_name, model_name).
+
+        Supports two formats:
+          1. profile reference:  {profile: "qwen"}  → looks up model_profiles
+          2. inline:             {provider: "local", model: "qwen3.5-9b"}
+        """
+        profiles = self.config.get("model_profiles", {})
+
+        profile_name = role_cfg.get("profile")
+        if profile_name and profile_name in profiles:
+            resolved = profiles[profile_name]
+            return resolved.get("provider", "local"), resolved.get("model", "")
+
+        # Inline / legacy format
+        return (
+            role_cfg.get("provider", "gemini"),
+            role_cfg.get("model", "gemini-2.0-flash-lite"),
+        )
+
     def get_llm_for_agent(self, agent) -> BaseProvider:
         """Get the appropriate LLM provider for an agent type."""
         agent_type = getattr(agent, 'agent_type', 'benign')
@@ -383,8 +403,7 @@ class ArcaneModel(mesa.Model):
         else:
             cfg = llm_cfg.get("benign_agents", {})
 
-        provider_name = cfg.get("provider", "gemini")
-        model_name = cfg.get("model", "gemini-2.0-flash-lite")
+        provider_name, model_name = self._resolve_llm_config(cfg)
         cache_key = f"{provider_name}:{model_name}"
 
         if cache_key not in self._llm_providers:
@@ -407,6 +426,8 @@ class ArcaneModel(mesa.Model):
                 from backend.llms.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
 
+            logger.info(f"LLM provider created: {cache_key} (for {agent_type})")
+
         return self._llm_providers[cache_key]
 
     def _load_default_config(self) -> dict:
@@ -415,6 +436,6 @@ class ArcaneModel(mesa.Model):
             os.path.dirname(__file__), "config", "settings.yaml"
         )
         if os.path.exists(config_path):
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
         return {}

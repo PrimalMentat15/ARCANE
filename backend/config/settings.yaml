@@ -27,27 +27,44 @@ simulation:
           type: neighbor
           label: "Sarah, a nice young woman next door"
 
+# ── Model Profiles ──────────────────────────────────────────────────
+# Define once, reference by name.  Only one model is loaded at a time
+# in LM Studio, so all roles share the same profile.
+
+model_profiles:
+  qwen:
+    provider: local
+    model: qwen3.5-9b
+  deepseek:
+    provider: local
+    model: deepseek-r1-distill-llama-8b
+  llama8b:
+    provider: local
+    model: meta-llama-3.1-8b-instruct
+  # Cloud options (uncomment to use)
+  # gemini_flash:
+  #   provider: gemini
+  #   model: gemini-2.0-flash-lite
+  # gemini_25:
+  #   provider: gemini
+  #   model: gemini-2.5-flash-lite
+
+# ── Active LLM Assignments ─────────────────────────────────────────
+# Change the 'profile' value to switch all agents to a different model.
+# You can also use inline provider/model for one-off overrides.
+
 llm:
   benign_agents:
-    provider: local
-    model: meta-llama-3.1-8b-instruct    # Model name as shown in LM Studio
+    profile: llama8b                 # ← swap to deepseek / llama8b etc.
   deviant_agents:
-    provider: local
-    model: meta-llama-3.1-8b-instruct
+    profile: llama8b
   reflection:
-    provider: local
-    model: meta-llama-3.1-8b-instruct
+    profile: llama8b
 
-  # -- Cloud providers (commented out, switch back anytime) --
+  # -- Inline override example (no profile needed) --
   # benign_agents:
   #   provider: gemini
   #   model: gemini-2.0-flash-lite
-  # deviant_agents:
-  #   provider: gemini
-  #   model: gemini-2.5-flash-lite
-  # reflection:
-  #   provider: gemini
-  #   model: gemini-2.5-flash-lite
 
 # Local LLM server configuration (LM Studio / Ollama / vLLM)
 local_llm:
@@ -62,6 +79,13 @@ memory:
     relevance: 1.0
   reflection_interval_steps: 10       # Reflect every N steps
   max_memories_retrieved: 10
+
+# Conversation context settings
+conversation:
+  summary_interval: 6                  # Summarize conversation every N exchanges
+  max_recent_messages: 8               # Recent messages to include in prompt
+  full_transcript_threshold: 10        # Use full transcript below this many exchanges
+  trust_eval_interval: 2               # Evaluate trust every N-th incoming message (reduces inflation)
 
 world:
   default_map: the_ville

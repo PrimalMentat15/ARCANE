@@ -13,6 +13,7 @@ import logging
 from typing import Optional, Any
 
 from backend.memory.memory_stream import MemoryStream
+from backend.memory.conversation_context import ConversationContext
 from backend.channels.smartphone import Smartphone
 from backend.llms.prompt_builder import build_system_prompt
 
@@ -66,6 +67,11 @@ class BaseArcaneAgent(mesa.Agent):
 
         # Communication
         self.smartphone = Smartphone(owner_id=agent_id, owner_name=self.name)
+
+        # Per-interlocutor conversation context (survives across steps)
+        self.conversation_ctx = ConversationContext(
+            agent_id=agent_id, agent_name=self.name
+        )
 
         # Location tracking
         self.current_location_name = persona_data.get(
