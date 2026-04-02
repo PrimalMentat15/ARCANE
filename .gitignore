@@ -71,3 +71,5 @@ storage/*
 static_dirs/*
 test_*.py
 tmpclaude-*
+
+.claude/*
