@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from backend.research.event_logger import EventLogger, SimEvent, EventType
+from backend.research.sim_recorder import SimRecorder
 from backend.channels.router import ChannelRouter
 from backend.agents.benign_agent import BenignAgent
 from backend.agents.deviant_agent import DeviantAgent
@@ -81,6 +82,13 @@ class ArcaneModel(mesa.Model):
             log_dir=self.config.get("logging", {}).get("log_dir", "storage/logs"),
         )
 
+        # Simulation recorder (captures full state snapshots for replay)
+        rec_cfg = self.config.get("recording", {})
+        self.recorder = SimRecorder(
+            recording_dir=rec_cfg.get("dir", "storage/recordings"),
+            save_interval=rec_cfg.get("save_interval", 5),
+        ) if rec_cfg.get("enabled", True) else None
+
         # Channel router
         channels_cfg = self.config.get("channels", {})
         self.channel_router = ChannelRouter(
@@ -131,6 +139,10 @@ class ArcaneModel(mesa.Model):
             },
         ))
 
+        # Initialize recording (captures initial frame at step 0)
+        if self.recorder:
+            self.recorder.init_recording(self)
+
         logger.info(f"ARCANE Model initialized: {len(self.agents_by_id)} agents, "
                      f"{len(self.location_names)} locations")
 
@@ -176,6 +188,10 @@ class ArcaneModel(mesa.Model):
 
         # Step end log
         self.event_logger.log_step_end(self.step_count, sim_time)
+
+        # Capture recording frame
+        if self.recorder:
+            self.recorder.capture_step(self)
 
     def _create_agents(self) -> None:
         """Create agents from config or scenario definition.
@@ -269,6 +285,24 @@ class ArcaneModel(mesa.Model):
                 initial_trust = trust_defaults.get(rel_type, 0.5)
                 agent.trust_register[rel["agent_id"]] = initial_trust
 
+        # Rewrite deviant target_agents to reference actual benign agent IDs
+        # (persona YAMLs may have hardcoded stale IDs like "agent_benign_4")
+        benign_ids = [
+            a.agent_id for a in all_agents
+            if getattr(a, 'agent_type', '') == 'benign'
+        ]
+        for agent in all_agents:
+            if getattr(agent, 'agent_type', '') == 'deviant' and hasattr(agent, 'objective'):
+                old_targets = agent.objective.get("target_agents", [])
+                valid_targets = [t for t in old_targets if t in self.agents_by_id]
+                if not valid_targets:
+                    # No valid targets — assign all benign agents
+                    agent.objective["target_agents"] = list(benign_ids)
+                    logger.info(f"Deviant {agent.name}: reassigned targets to "
+                                f"{benign_ids} (original {old_targets} not found)")
+                else:
+                    agent.objective["target_agents"] = valid_targets
+
     def _default_agents(self) -> list[dict]:
         """Fallback: load default agents from persona files."""
         try:
@@ -339,6 +373,26 @@ class ArcaneModel(mesa.Model):
         """No-op: agents stay at their home tile in the current scenario."""
         pass
 
+    def _resolve_llm_config(self, role_cfg: dict) -> tuple[str, str]:
+        """Resolve a role's LLM config to (provider_name, model_name).
+
+        Supports two formats:
+          1. profile reference:  {profile: "qwen"}  → looks up model_profiles
+          2. inline:             {provider: "local", model: "qwen3.5-9b"}
+        """
+        profiles = self.config.get("model_profiles", {})
+
+        profile_name = role_cfg.get("profile")
+        if profile_name and profile_name in profiles:
+            resolved = profiles[profile_name]
+            return resolved.get("provider", "local"), resolved.get("model", "")
+
+        # Inline / legacy format
+        return (
+            role_cfg.get("provider", "gemini"),
+            role_cfg.get("model", "gemini-2.0-flash-lite"),
+        )
+
     def get_llm_for_agent(self, agent) -> BaseProvider:
         """Get the appropriate LLM provider for an agent type."""
         agent_type = getattr(agent, 'agent_type', 'benign')
@@ -349,8 +403,7 @@ class ArcaneModel(mesa.Model):
         else:
             cfg = llm_cfg.get("benign_agents", {})
 
-        provider_name = cfg.get("provider", "gemini")
-        model_name = cfg.get("model", "gemini-2.0-flash-lite")
+        provider_name, model_name = self._resolve_llm_config(cfg)
         cache_key = f"{provider_name}:{model_name}"
 
         if cache_key not in self._llm_providers:
@@ -373,6 +426,8 @@ class ArcaneModel(mesa.Model):
                 from backend.llms.gemini_provider import GeminiProvider
                 self._llm_providers[cache_key] = GeminiProvider(model=model_name)
 
+            logger.info(f"LLM provider created: {cache_key} (for {agent_type})")
+
         return self._llm_providers[cache_key]
 
     def _load_default_config(self) -> dict:
@@ -381,6 +436,6 @@ class ArcaneModel(mesa.Model):
             os.path.dirname(__file__), "config", "settings.yaml"
         )
         if os.path.exists(config_path):
-            with open(config_path, "r") as f:
+            with open(config_path, "r", encoding="utf-8") as f:
                 return yaml.safe_load(f) or {}
         return {}

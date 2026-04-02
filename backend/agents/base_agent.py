@@ -13,6 +13,7 @@ import logging
 from typing import Optional, Any
 
 from backend.memory.memory_stream import MemoryStream
+from backend.memory.conversation_context import ConversationContext
 from backend.channels.smartphone import Smartphone
 from backend.llms.prompt_builder import build_system_prompt
 
@@ -42,6 +43,7 @@ class BaseArcaneAgent(mesa.Agent):
         self.name = persona_data.get("name", agent_id)
         self.persona_data = persona_data
         self.agent_type = persona_data.get("type", "benign")
+        self.sprite = persona_data.get("sprite", None)
 
         # Big Five personality traits
         self.traits = persona_data.get("traits", {
@@ -65,6 +67,11 @@ class BaseArcaneAgent(mesa.Agent):
 
         # Communication
         self.smartphone = Smartphone(owner_id=agent_id, owner_name=self.name)
+
+        # Per-interlocutor conversation context (survives across steps)
+        self.conversation_ctx = ConversationContext(
+            agent_id=agent_id, agent_name=self.name
+        )
 
         # Location tracking
         self.current_location_name = persona_data.get(

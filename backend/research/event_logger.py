@@ -233,11 +233,15 @@ class EventLogger:
                 if e.agent_id == agent_id or e.target_id == agent_id]
 
     def get_conversation_between(self, agent1_id: str, agent2_id: str) -> list[SimEvent]:
-        """Get all message events between two specific agents, chronologically."""
+        """Get all message events between two specific agents, chronologically.
+
+        Only includes MESSAGE_SENT events — MESSAGE_RECEIVED (delivery notices)
+        are kept in the event log only and excluded from chat views.
+        """
         pair = {agent1_id, agent2_id}
         return [
             e for e in self.all_events
-            if e.event_type in (EventType.MESSAGE_SENT, EventType.MESSAGE_RECEIVED)
+            if e.event_type == EventType.MESSAGE_SENT
             and {e.agent_id, e.target_id} == pair
         ]
 

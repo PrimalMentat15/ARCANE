@@ -38,7 +38,7 @@ def set_model(model):
 
 
 def _assign_sprites():
-    """Assign character sprites to agents from the available pool."""
+    """Assign character sprites to agents from their persona or fallback pool."""
     global _sprite_assignments
 
     profile_dir = _ASSETS_DIR / "characters" / "profile"
@@ -55,15 +55,23 @@ def _assign_sprites():
 
     agents = list(_model.agents_by_id.values())
 
-    # Assign sprites: deviant gets a distinguishable one, benign get from pool
-    pool = list(available)
+    # Build set of already-used sprites (from persona definitions)
+    used = set()
     for agent in agents:
-        agent_type = getattr(agent, 'agent_type', 'benign')
-        if pool:
-            sprite_name = pool.pop(0)
-        else:
-            sprite_name = available[hash(agent.agent_id) % len(available)]
-        _sprite_assignments[agent.agent_id] = sprite_name
+        persona_sprite = getattr(agent, 'sprite', None)
+        if persona_sprite and persona_sprite in available:
+            _sprite_assignments[agent.agent_id] = persona_sprite
+            used.add(persona_sprite)
+
+    # Assign from remaining pool for agents without a persona sprite
+    pool = [s for s in available if s not in used]
+    for agent in agents:
+        if agent.agent_id not in _sprite_assignments:
+            if pool:
+                sprite_name = pool.pop(0)
+            else:
+                sprite_name = available[hash(agent.agent_id) % len(available)]
+            _sprite_assignments[agent.agent_id] = sprite_name
 
     logger.info(f"Assigned sprites to {len(_sprite_assignments)} agents")
 
@@ -338,7 +346,7 @@ def create_app() -> FastAPI:
         config_path = _BACKEND_DIR / "config" / "settings.yaml"
         config = {}
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = _yaml.safe_load(f) or {}
 
         llm_cfg = config.get("llm", {})
@@ -392,7 +400,7 @@ def create_app() -> FastAPI:
         # Load base config
         config_path = _BACKEND_DIR / "config" / "settings.yaml"
         if config_path.exists():
-            with open(config_path) as f:
+            with open(config_path, encoding='utf-8') as f:
                 config = _yaml.safe_load(f) or {}
         else:
             config = {}
@@ -467,4 +475,113 @@ def create_app() -> FastAPI:
         except Exception as e:
             return {"connected": False, "error": str(e)}
 
+    # --- Recording & Replay API endpoints ---
+
+    @app.get("/api/recordings")
+    async def get_recordings():
+        """List all available simulation recordings."""
+        from backend.research.sim_player import list_recordings
+
+        rec_dir = "storage/recordings"
+        if _model and hasattr(_model, 'recorder') and _model.recorder:
+            rec_dir = _model.recorder.recording_dir
+
+        recordings = list_recordings(rec_dir)
+        return {"recordings": recordings}
+
+    @app.get("/api/recordings/{run_id}")
+    async def get_recording_meta(run_id: str):
+        """Get metadata for a specific recording."""
+        from backend.research.sim_player import SimPlayer, list_recordings
+
+        rec_dir = "storage/recordings"
+        if _model and hasattr(_model, 'recorder') and _model.recorder:
+            rec_dir = _model.recorder.recording_dir
+
+        # Find the file
+        recordings = list_recordings(rec_dir)
+        target_file = None
+        for rec in recordings:
+            if rec["run_id"] == run_id:
+                target_file = rec["file"]
+                break
+
+        if not target_file:
+            return {"error": f"Recording '{run_id}' not found"}
+
+        player = SimPlayer()
+        try:
+            meta = player.load(target_file)
+            return meta
+        except (FileNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+    @app.get("/api/recordings/{run_id}/step/{step}")
+    async def get_recording_frame(run_id: str, step: int):
+        """Get state + events frame for a specific step in a recording."""
+        from backend.research.sim_player import SimPlayer, list_recordings
+
+        rec_dir = "storage/recordings"
+        if _model and hasattr(_model, 'recorder') and _model.recorder:
+            rec_dir = _model.recorder.recording_dir
+
+        # Find the file
+        recordings = list_recordings(rec_dir)
+        target_file = None
+        for rec in recordings:
+            if rec["run_id"] == run_id:
+                target_file = rec["file"]
+                break
+
+        if not target_file:
+            return {"error": f"Recording '{run_id}' not found"}
+
+        player = SimPlayer()
+        try:
+            player.load(target_file)
+        except (FileNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+        frame = player.get_frame(step)
+        if frame is None:
+            return {"error": f"Step {step} not found in recording"}
+
+        # Enrich with agent roster for sprite info
+        agents_roster = player.recording.get("agents", {})
+        return {
+            "frame": frame,
+            "agents_roster": agents_roster,
+        }
+
+    @app.get("/api/recordings/{run_id}/full")
+    async def get_recording_full(run_id: str):
+        """Get the entire recording (all frames) for client-side replay."""
+        from backend.research.sim_player import SimPlayer, list_recordings
+
+        rec_dir = "storage/recordings"
+        if _model and hasattr(_model, 'recorder') and _model.recorder:
+            rec_dir = _model.recorder.recording_dir
+
+        recordings = list_recordings(rec_dir)
+        target_file = None
+        for rec in recordings:
+            if rec["run_id"] == run_id:
+                target_file = rec["file"]
+                break
+
+        if not target_file:
+            return {"error": f"Recording '{run_id}' not found"}
+
+        player = SimPlayer()
+        try:
+            player.load(target_file)
+        except (FileNotFoundError, ValueError) as e:
+            return {"error": str(e)}
+
+        return {
+            "metadata": player.get_metadata(),
+            "frames": player.frames,
+        }
+
     return app
+

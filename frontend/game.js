@@ -219,6 +219,7 @@ class ArcaneScene extends Phaser.Scene {
     _connectAPI() {
         // Register callbacks
         ArcaneAPI.onStateUpdate((state) => {
+            if (_replayMode) return; // Don't update during replay
             currentState = state;
             this._updateAgents(state);
             ArcaneUI.updateFromState(state);
@@ -408,6 +409,46 @@ window.ArcaneGame.focusAgent = (agentId) => {
     if (scene) scene._focusOnAgent(agentId);
 };
 
+// --- Replay mode ---
+let _replayMode = false;
+
+window.ArcaneGame.setReplayMode = (enabled) => {
+    _replayMode = enabled;
+    if (enabled) {
+        // Pause live polling when in replay mode
+        // (polling will still run but state updates won't be applied)
+    }
+};
+
+window.ArcaneGame.applyReplayFrame = (frame, agentsRoster) => {
+    const scene = window._arcaneScene;
+    if (!scene || !frame || !frame.agent_states) return;
+
+    // Build a state object compatible with _updateAgents
+    const agents = {};
+    for (const [id, state] of Object.entries(frame.agent_states)) {
+        const roster = (agentsRoster || {})[id] || {};
+        agents[id] = {
+            name: roster.name || id,
+            type: roster.type || 'benign',
+            sprite: roster.sprite || 'Adam_Smith',
+            pos: state.pos || [0, 0],
+            pronunciatio: state.emoji || '💬',
+            activity: state.activity || 'idle',
+            location: state.location || '',
+        };
+    }
+
+    const replayState = {
+        step: frame.step,
+        sim_time: frame.sim_time,
+        agents: agents,
+    };
+
+    currentState = replayState;
+    scene._updateAgents(replayState);
+};
+
 // --- Init function: called by setup.js when ready ---
 window.ArcaneGame.init = () => {
     if (window._arcaneGame) return; // already initialized
@@ -440,3 +481,4 @@ window.ArcaneGame.init = () => {
         game.scale.resize(window.innerWidth - hudWidth, window.innerHeight);
     });
 };
+

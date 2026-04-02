@@ -682,6 +682,231 @@
             background: rgba(192, 132, 252, 0.2);
         }
 
+        /* --- Recordings Panel --- */
+        #recordings-panel {
+            padding: 12px;
+        }
+
+        .recording-entry {
+            background: #111133;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+            border: 1px solid #1a1a4e;
+            transition: border-color 0.2s;
+        }
+
+        .recording-entry:hover {
+            border-color: #3a3a7e;
+        }
+
+        .rec-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .rec-id {
+            font-size: 12px;
+            font-weight: 600;
+            color: #60a5fa;
+            font-family: 'Consolas', monospace;
+        }
+
+        .rec-steps {
+            font-size: 10px;
+            color: #c084fc;
+            background: rgba(192, 132, 252, 0.12);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .rec-meta {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .rec-agents {
+            font-size: 10px;
+            color: #888;
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .rec-play-btn {
+            background: linear-gradient(135deg, #1e3a5f, #1a2d4a);
+            border: 1px solid #2a4a6e;
+            color: #60a5fa;
+            padding: 5px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .rec-play-btn:hover {
+            background: linear-gradient(135deg, #2a4a7f, #1e3a5f);
+            color: #88bbff;
+        }
+
+        /* --- Replay Controls --- */
+        #replay-controls {
+            background: linear-gradient(135deg, #0d1a2e, #0a1020);
+            border-top: 1px solid #1a3a5e;
+            padding: 10px 14px;
+            flex-shrink: 0;
+        }
+
+        #replay-controls.hidden {
+            display: none;
+        }
+
+        .replay-status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        #replay-status {
+            font-size: 10px;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        #replay-sim-time {
+            font-size: 10px;
+            color: #888;
+            font-family: 'Consolas', monospace;
+        }
+
+        .replay-timeline-row {
+            margin-bottom: 8px;
+        }
+
+        #replay-timeline {
+            width: 100%;
+            height: 4px;
+            -webkit-appearance: none;
+            appearance: none;
+            background: #1a1a3e;
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        #replay-timeline::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #60a5fa;
+            cursor: pointer;
+        }
+
+        .replay-btn-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .replay-btn {
+            background: rgba(96, 165, 250, 0.1);
+            border: 1px solid #1a3a5e;
+            color: #60a5fa;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .replay-btn:hover {
+            background: rgba(96, 165, 250, 0.2);
+        }
+
+        .replay-btn.primary {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #1e3a5f, #1a2d4a);
+            border-color: #2a4a6e;
+            font-size: 16px;
+        }
+
+        #replay-step-counter {
+            font-size: 11px;
+            color: #aaa;
+            font-family: 'Consolas', monospace;
+            margin: 0 8px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        #replay-speed-btn {
+            font-size: 10px;
+            padding: 0 6px;
+            width: auto;
+        }
+
+        #replay-speed-label {
+            font-size: 10px;
+        }
+
+        .replay-exit-btn {
+            background: rgba(231, 76, 60, 0.1);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            color: #e74c3c;
+            font-size: 10px;
+            padding: 4px 10px;
+            width: auto;
+        }
+
+        .replay-exit-btn:hover {
+            background: rgba(231, 76, 60, 0.2);
+        }
+
+        /* --- Replay Mode Banner --- */
+        #replay-mode-banner {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: linear-gradient(135deg, #0d1a2e, #102040);
+            border-bottom: 2px solid #2a6eff;
+            color: #60a5fa;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .replay-banner-icon {
+            font-size: 14px;
+        }
+
+        .replay-banner-id {
+            font-family: 'Consolas', monospace;
+            font-size: 10px;
+            color: #88bbff;
+            margin-left: 4px;
+        }
+
+        #hud.replay-mode {
+            border-left-color: #2a6eff;
+        }
+
         /* Scrollbar styling */
         ::-webkit-scrollbar {
             width: 6px;
@@ -1201,6 +1426,7 @@
             <button class="tab-btn" data-tab="agents">Agents</button>
             <button class="tab-btn" data-tab="metrics">Metrics</button>
             <button class="tab-btn" data-tab="results">Results</button>
+            <button class="tab-btn" data-tab="recordings">Replay</button>
             <button class="tab-btn" data-tab="history">History</button>
         </div>
 
@@ -1269,6 +1495,33 @@
                 <div style="color: #555; padding: 20px; text-align: center;">
                     Loading history...
                 </div>
+            </div>
+        </div>
+
+        <div id="tab-recordings" class="tab-content">
+            <div id="recordings-panel">
+                <div style="color: #555; padding: 20px; text-align: center;">
+                    Loading recordings...
+                </div>
+            </div>
+        </div>
+
+        <!-- Replay Controls Bar (shown when a recording is loaded) -->
+        <div id="replay-controls" class="hidden">
+            <div class="replay-status-bar">
+                <span id="replay-status">Not loaded</span>
+                <span id="replay-sim-time"></span>
+            </div>
+            <div class="replay-timeline-row">
+                <input type="range" id="replay-timeline" min="0" max="1" value="0">
+            </div>
+            <div class="replay-btn-row">
+                <button class="replay-btn replay-exit-btn" id="replay-exit-btn" title="Exit Replay">✕ Exit</button>
+                <button class="replay-btn" id="replay-step-back" title="Step Back">⏮</button>
+                <button class="replay-btn primary" id="replay-play-btn" title="Play / Pause">▶</button>
+                <button class="replay-btn" id="replay-step-fwd" title="Step Forward">⏭</button>
+                <span id="replay-step-counter">0 / 0</span>
+                <button class="replay-btn" id="replay-speed-btn" title="Change Speed"><span id="replay-speed-label">1x</span></button>
             </div>
         </div>
     </div>

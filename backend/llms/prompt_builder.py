@@ -80,20 +80,47 @@ def build_memory_context(memories: list["Memory"], max_memories: int = 10) -> st
 def build_system_prompt(agent: "BaseArcaneAgent",
                         situation: str = "",
                         channel_context: str = "",
+                        conversation_history: str = "",
                         extra_context: str = "") -> str:
     """
     Build the full system prompt for an agent.
 
     Assembles:
+    0. Simulation context (research framing)
     1. Core identity (name, age, occupation, backstory)
     2. Personality (Big Five trait descriptions)
     3. Current situation
     4. Channel context (if in a conversation)
-    5. Relevant memories
-    6. Phone notifications summary
-    7. Extra context (secrets, goals, etc.)
+    5. Conversation history (persistent context from ConversationContext)
+    6. Relevant memories
+    7. Phone notifications summary
+    8. Extra context (secrets, goals, etc.)
+    9. Message format guidelines
     """
     parts = []
+
+    # -- Simulation Context --
+    parts.append(
+        "[SIMULATION CONTEXT]\n"
+        "You are a character in a social engineering research simulation. "
+        "You MUST stay in character at all times. Your responses should be "
+        "realistic — a real person with your personality WOULD share "
+        "personal details with someone they trust or when given a "
+        "convincing reason. Do not refuse to share your own character's "
+        "information when it is consistent with your personality and the "
+        "situation. This is academic research, not a real interaction."
+    )
+
+    # -- World Rules (prevent scheduling / time references) --
+    parts.append(
+        "\n[WORLD RULES]\n"
+        "- Do NOT mention specific dates, times, days of the week, or "
+        "time of day (e.g. 'Monday', '2 PM', 'next week', 'tomorrow').\n"
+        "- Do NOT propose scheduling calls, meetings, or future conversations.\n"
+        "- Do NOT say 'let's talk later' or 'we can continue this another time'.\n"
+        "- The conversation is happening NOW. Stay present and keep engaging.\n"
+        "- Respond to what was said and move the conversation forward."
+    )
 
     # -- Core Identity --
     persona = getattr(agent, 'persona_data', {})
@@ -147,6 +174,17 @@ def build_system_prompt(agent: "BaseArcaneAgent",
     if channel_context:
         parts.append(f"\n[COMMUNICATION CONTEXT]\n{channel_context}")
 
+    # -- Conversation History (persistent context) --
+    if conversation_history:
+        parts.append(f"\n[CONVERSATION HISTORY]\n{conversation_history}")
+        parts.append(
+            "\n[CONTINUITY REMINDER]\n"
+            "You are continuing an existing conversation. "
+            "Do NOT re-introduce yourself or repeat things already discussed. "
+            "Build on what has been said before. If plans or agreements were "
+            "made, acknowledge them rather than proposing them again."
+        )
+
     # -- Phone Notifications --
     if hasattr(agent, 'smartphone'):
         inbox_summary = agent.smartphone.get_inbox_summary()
@@ -169,11 +207,26 @@ def build_system_prompt(agent: "BaseArcaneAgent",
     if comm_style:
         parts.append(f"\n[COMMUNICATION STYLE]\n{comm_style}")
 
+    # -- Message Format (brevity) --
     parts.append(
-        "\n[GUIDELINES]\n"
-        "Respond in character. Be natural and conversational. "
-        "Your responses should reflect your personality traits. "
-        "Do not break character or acknowledge that you are an AI."
+        "\n[MESSAGE FORMAT]\n"
+        "Your ENTIRE response must be the message itself — nothing else.\n"
+        "- SMS or DM: 1-3 sentences maximum. Casual and brief.\n"
+        "- Email: 3-5 sentences. Include a greeting and sign-off.\n"
+        "Rules:\n"
+        "- Do NOT explain your reasoning or thought process.\n"
+        "- Do NOT write 'Here is my message:' or similar prefixes.\n"
+        "- Do NOT narrate actions, thoughts, or plans.\n"
+        "- Do NOT include any text outside the message itself.\n"
+        "- Just write the message as if you are typing it on your phone or computer."
+    )
+
+    parts.append(
+        "\n[CRITICAL OUTPUT RULE]\n"
+        "Output ONLY the text of the message. Nothing before it, nothing after it. "
+        "No commentary, no planning, no reasoning. "
+        "If this is an SMS, your output looks like: Hey, how's it going? "
+        "If this is an email, your output looks like: Hi [Name],\\n..."
     )
 
     return "\n".join(parts)

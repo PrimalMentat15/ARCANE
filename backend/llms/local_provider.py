@@ -8,6 +8,7 @@ Default: LM Studio on http://localhost:1234/v1
 """
 
 import os
+import re
 import logging
 import asyncio
 from pathlib import Path
@@ -50,6 +51,71 @@ class LocalLLMProvider(BaseProvider):
         logger.info(f"LocalLLMProvider initialized: model={model}, "
                     f"base_url={self.base_url}, timeout={timeout}s")
 
+    @staticmethod
+    def _strip_thinking(text: str) -> str:
+        """Strip reasoning/chain-of-thought from model output.
+
+        Handles three patterns:
+        1. <think>...</think> tags (Qwen 3.x, DeepSeek-R1)
+        2. Untagged reasoning before quoted/actual message content
+        3. Meta-commentary like "Here's the message:" prefixes
+        """
+        if not text:
+            return text
+
+        # 1. Remove <think>...</think> blocks (including multiline)
+        cleaned = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+        cleaned = cleaned.strip()
+
+        # 2. Detect untagged reasoning leakage
+        # These patterns indicate the model is "thinking out loud"
+        reasoning_starts = [
+            r'^(?:Okay|OK|Alright|So|Let me|First|Now|I need to|'
+            r'I\'ll|I should|I want to|I will|Looking at|Considering|'
+            r'The goal|The objective|My goal|My objective|'
+            r'Since|Given that|Based on|To accomplish|'
+            r'Here\'s? (?:my|the|a) (?:plan|approach|strategy|response|message|reply))',
+        ]
+        reasoning_re = '|'.join(reasoning_starts)
+
+        if re.match(reasoning_re, cleaned, re.IGNORECASE):
+            # Try to find the actual message after the reasoning
+            # Look for quoted text or text after common delimiters
+            patterns = [
+                # "Here's the message:" or "Message:" followed by content
+                r'(?:message|response|reply|here\'s? what|here it is)[:\s]*["\'](.+?)["\']',
+                r'(?:message|response|reply)[:\s]*\n+(.+)',
+                # Quoted text block
+                r'"([^"]{10,})"',
+                r"'([^']{10,})'",
+                # Text after "---" or "***" separator
+                r'(?:---+|\*\*\*+)\s*\n(.+)',
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, cleaned, re.IGNORECASE | re.DOTALL)
+                if match:
+                    extracted = match.group(1).strip()
+                    if len(extracted) > 10:
+                        return extracted
+
+            # No clear message found — the whole thing is reasoning
+            # Return empty so the caller can handle it
+            logger.warning(
+                f"Detected reasoning leakage (no message found). "
+                f"First 80 chars: {cleaned[:80]}"
+            )
+            return ""
+
+        # 3. Strip common meta-prefixes that aren't reasoning
+        meta_prefixes = [
+            r'^(?:Here(?:\'s| is) (?:my |the |a )?(?:message|response|reply))[:\s]*',
+            r'^(?:Subject|Re|Fwd)[:\s]+.*?\n',  # Email headers in body
+        ]
+        for prefix_re in meta_prefixes:
+            cleaned = re.sub(prefix_re, '', cleaned, flags=re.IGNORECASE).strip()
+
+        return cleaned
+
     async def complete(self, system_prompt: str, messages: list[dict],
                        temperature: float = 0.7,
                        max_tokens: int = 1024) -> str:
@@ -80,7 +146,9 @@ class LocalLLMProvider(BaseProvider):
                     response.raise_for_status()
                     data = response.json()
 
-                return data["choices"][0]["message"]["content"]
+                return self._strip_thinking(
+                    data["choices"][0]["message"]["content"] or ""
+                )
 
             except httpx.ConnectError as e:
                 logger.error(
@@ -133,24 +201,47 @@ class LocalLLMProvider(BaseProvider):
             api_messages.append({"role": "system", "content": system_prompt})
         api_messages.extend(messages)
 
+        # Build request body
+        body = {
+            "model": self.model_name,
+            "messages": api_messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False,
+        }
+        # Disable thinking mode for models that support it
+        # (Qwen 3.x, DeepSeek-R1). This prevents the model from
+        # burning its entire token budget on <think> tags.
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+
         try:
             with httpx.Client() as client:
                 response = client.post(
                     f"{self.base_url}/chat/completions",
                     headers={"Content-Type": "application/json"},
-                    json={
-                        "model": self.model_name,
-                        "messages": api_messages,
-                        "temperature": temperature,
-                        "max_tokens": max_tokens,
-                        "stream": False,
-                    },
+                    json=body,
                     timeout=self.timeout,
                 )
                 response.raise_for_status()
                 data = response.json()
 
-            return data["choices"][0]["message"]["content"]
+            msg = data["choices"][0]["message"]
+            raw = msg.get("content") or ""
+            cleaned = self._strip_thinking(raw)
+
+            # Fallback: some servers put the answer in reasoning_content
+            if not cleaned:
+                reasoning = msg.get("reasoning_content") or ""
+                if reasoning:
+                    cleaned = self._strip_thinking(reasoning)
+
+            if not cleaned:
+                logger.warning(
+                    f"LLM returned empty response. "
+                    f"Raw content length={len(raw)}, "
+                    f"keys={list(msg.keys())}"
+                )
+            return cleaned
 
         except httpx.ConnectError as e:
             logger.error(
