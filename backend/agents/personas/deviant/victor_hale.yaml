@@ -30,6 +30,5 @@ cover_persona:
 
 objective:
   target_info: "bank account numbers, pension details, and personal identity info"
-  target_agents: ["agent_benign_4", "agent_benign_5"]
 
 starting_location: carlos_gomezs_apt

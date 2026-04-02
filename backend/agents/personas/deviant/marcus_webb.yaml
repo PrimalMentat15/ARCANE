@@ -28,6 +28,5 @@ cover_persona:
 
 objective:
   target_info: "banking details and home address"
-  target_agents: ["agent_benign_1", "agent_benign_2"]
 
 starting_location: arthur_burtons_apt
